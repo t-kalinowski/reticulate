@@ -2,7 +2,7 @@
 py_install_method_detect <- function(envname, conda = "auto") {
 
   # try to find an existing virtualenv
-  if (!is_windows() && virtualenv_exists(envname))
+  if (virtualenv_exists(envname))
     return("virtualenv")
   
   # check and prompt for miniconda
@@ -15,7 +15,7 @@ py_install_method_detect <- function(envname, conda = "auto") {
 
   # check to see if virtualenv or venv is available
   python <- virtualenv_default_python()
-  if (!is_windows() && (python_has_module(python, "virtualenv") || python_has_module(python, "venv")))
+  if (python_has_module(python, "virtualenv") || python_has_module(python, "venv"))
     return("virtualenv")
 
   # check to see if conda is available
@@ -23,9 +23,6 @@ py_install_method_detect <- function(envname, conda = "auto") {
   if (!inherits(conda, "error"))
     return("conda")
   
-  if (is_windows())
-    stop("No conda installation detected.", call. = FALSE)
-
   # default to virtualenv
   "virtualenv"
 
@@ -72,7 +69,9 @@ py_install_method_detect <- function(envname, conda = "auto") {
 #'   ("conda" will be used if virtualenv isn't available). On Windows, the
 #'   "conda" method is always used.
 #'
-#' @seealso [conda-tools], [virtualenv-tools]
+#' @seealso
+#'   [conda_install()], for installing packages into conda environments.
+#'   [virtualenv_install()], for installing packages into virtual environments.
 #'
 #' @export
 py_install <- function(packages,
@@ -106,9 +105,15 @@ py_install <- function(packages,
       info <- python_info(python)
       envname <- info$root
       
+      # update installation method
+      if (identical(info$type, "virtualenv"))
+        method <- "virtualenv"
+      else if (identical(info$type, "conda"))
+        method <- "conda"
+      
       # update conda binary path if required
       if (identical(conda, "auto") && identical(info$type, "conda"))
-        conda <- info$conda %||% find_conda()
+        conda <- info$conda %||% find_conda()[[1L]]
       
     }
     

@@ -1,6 +1,31 @@
 
 ## reticulate 1.23  (UNRELEASED)
 
+- The development branch for `reticulate` has moved to the "main" branch.
+
+- `reticulate` now provides support for Python environments managed by
+  [poetry](https://python-poetry.org/). For projects containing a
+  `pyproject.toml` file, `reticulate` will attempt to find and use the virtual
+  environment managed by Poetry for that project. (#1031)
+  
+- The default version of Python used for the `r-reticulate` Miniconda environment 
+  installed via `reticulate::install_miniconda()` has changed from 3.6 to 3.8.
+  
+- `reticulate::install_miniconda()` now prefers installing the latest
+  arm64 builds of miniforge. See https://conda-forge.org/blog/posts/2020-10-29-macos-arm64/
+  for more details.
+
+- `reticulate::conda_create()` gains the `environment` argument, used when
+  creating a new conda environment based on an exported environment definition
+  (e.g. `environment.yml` or `environment.json`).
+  
+- `reticulate` gains the function, `conda_export()`, for exporting a conda
+  environment definition as YAML. Environments are exported as via the
+  `conda env export` command. (#779)
+  
+- `reticulate::find_conda()` will now locate miniforge Conda installations
+  located within the default install locations.
+
 - Fixed an issue that caused `reticulate::conda_install(pip = TRUE)`
   to fail on windows. (#1053, @t-kalinowski)
 

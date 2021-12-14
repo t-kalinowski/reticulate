@@ -30,11 +30,11 @@ install_miniconda <- function(path = miniconda_path(),
   install_miniconda_preflight(path, force)
   
   # download the installer
+  message("* Installing Miniconda -- please wait a moment ...")
   url <- miniconda_installer_url()
   installer <- miniconda_installer_download(url)
   
   # run the installer
-  message("* Installing Miniconda -- please wait a moment ...")
   miniconda_installer_run(installer, update, path)
   
   # validate the install succeeded
@@ -51,7 +51,7 @@ install_miniconda <- function(path = miniconda_path(),
   python <- miniconda_python_package()
   conda_create("r-reticulate", packages = c(python, "numpy"), conda = conda)
   
-  messagef("* Miniconda has been successfully installed at %s.", shQuote(path))
+  messagef("* Miniconda has been successfully installed at %s.", pretty_path(path))
   path
   
 }
@@ -82,8 +82,17 @@ install_miniconda_preflight <- function(path, force) {
     return(invisible(TRUE))
   
   # check for a miniconda installation
-  if (miniconda_exists(path))
-    stopf("Miniconda is already installed at %s", shQuote(path))
+  if (miniconda_exists(path)) {
+    
+    fmt <- paste(
+      "Miniconda is already installed at path %s.",
+      "- Use `reticulate::install_miniconda(force = TRUE)` to overwrite the previous installation.",
+      sep = "\n"
+    )
+    
+    stopf(fmt, pretty_path(path))
+    
+  }
   
   # ok to proceed
   invisible(TRUE)
@@ -96,10 +105,19 @@ miniconda_installer_url <- function(version = "3") {
   if (!is.null(url))
     return(url)
   
+  # TODO: miniconda does not yet have arm64 binaries for macOS,
+  # so we'll just use miniforge instead
+  info <- as.list(Sys.info())
+  if (info$sysname == "Darwin" && info$machine == "arm64") {
+    base <- "https://github.com/conda-forge/miniforge/releases/latest/download"
+    name <- "Miniforge3-MacOSX-arm64.sh"
+    return(file.path(base, name))
+  }
+
   base <- "https://repo.anaconda.com/miniconda"
   
   info <- as.list(Sys.info())
-  arch <- miniconda_installer_arch()
+  arch <- miniconda_installer_arch(info)
   version <- as.character(version)
   name <- if (is_windows())
     sprintf("Miniconda%s-latest-Windows-%s.exe", version, arch)
@@ -114,17 +132,12 @@ miniconda_installer_url <- function(version = "3") {
   
 }
 
-miniconda_installer_arch <- function() {
+miniconda_installer_arch <- function(info) {
   
   # allow user override
   arch <- getOption("reticulate.miniconda.arch")
   if (!is.null(arch))
     return(arch)
-  
-  # arm64 on macOS is not yet supported
-  info <- as.list(Sys.info())
-  if (info$machine == "i386")
-    return("x86")
   
   # miniconda url use x86_64 not x86-64 for Windows
   if (info$machine == "x86-64")
@@ -220,9 +233,19 @@ miniconda_path <- function() {
 
 miniconda_path_default <- function() {
   
-  if (is_osx())
-    return(path.expand("~/Library/r-miniconda"))
+  if (is_osx()) {
+    
+    # on macOS, use different path for arm64 miniconda
+    path <- if (Sys.info()[["machine"]] == "arm64")
+      "~/Library/r-miniconda-arm64"
+    else
+      "~/Library/r-miniconda"
+    
+    return(path.expand(path))
+    
+  }
   
+  # otherwise, use rappdirs default
   root <- normalizePath(rappdirs::user_data_dir(), winslash = "/", mustWork = FALSE)
   file.path(root, "r-miniconda")
   
@@ -339,7 +362,7 @@ miniconda_python_envpath <- function() {
 
 # the version of python to use in the environment
 miniconda_python_version <- function() {
-  Sys.getenv("RETICULATE_MINICONDA_PYTHON_VERSION", unset = "3.6")
+  Sys.getenv("RETICULATE_MINICONDA_PYTHON_VERSION", unset = "3.8")
 }
 
 miniconda_python_package <- function() {
