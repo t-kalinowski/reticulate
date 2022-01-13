@@ -141,12 +141,12 @@
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/rstudio/reticulate" class="external-link">reticulate</a></span><span class="op">)</span>
 <span class="fu"><a href="reference/use_python.html">use_virtualenv</a></span><span class="op">(</span><span class="st">"myenv"</span><span class="op">)</span></code></pre></div>
-<p>See the article on <a href="https://rstudio.github.io/reticulate/articles/versions.html" class="external-link">Python Version Configuration</a> for additional details.</p>
+<p>See the article on <a href="https://rstudio.github.io/reticulate/articles/versions.html">Python Version Configuration</a> for additional details.</p>
 </div>
 <div class="section level4">
 <h4 id="python-packages">Python packages<a class="anchor" aria-label="anchor" href="#python-packages"></a>
 </h4>
-<p>You can install any required Python packages using standard shell tools like <code>pip</code> and <code>conda</code>. Alternately, reticulate includes a set of functions for managing and installing packages within virtualenvs and Conda environments. See the article on <a href="https://rstudio.github.io/reticulate/articles/python_packages.html" class="external-link">Installing Python Packages</a> for additional details.</p>
+<p>You can install any required Python packages using standard shell tools like <code>pip</code> and <code>conda</code>. Alternately, reticulate includes a set of functions for managing and installing packages within virtualenvs and Conda environments. See the article on <a href="https://rstudio.github.io/reticulate/articles/python_packages.html">Installing Python Packages</a> for additional details.</p>
 </div>
 <div class="section level4">
 <h4 id="calling-python">Calling Python<a class="anchor" aria-label="anchor" href="#calling-python"></a>
@@ -174,7 +174,7 @@
 <p>Built in conversion for many Python object types is provided, including <a href="https://numpy.org/" class="external-link">NumPy</a> arrays and <a href="https://pandas.pydata.org/" class="external-link">Pandas</a> data frames. For example, you can use Pandas to read and manipulate data then easily plot the Pandas data frame using <a href="https://ggplot2.tidyverse.org/" class="external-link">ggplot2</a>:</p>
 <p><img src="reference/figures/rmarkdown_engine_zoomed.png"></p>
 <p>Note that the reticulate Python engine is enabled by default within R Markdown whenever reticulate is installed.</p>
-<p>See the <a href="https://rstudio.github.io/reticulate/articles/r_markdown.html" class="external-link">R Markdown Python Engine</a> documentation for additional details.</p>
+<p>See the <a href="https://rstudio.github.io/reticulate/articles/r_markdown.html">R Markdown Python Engine</a> documentation for additional details.</p>
 </div>
 <div class="section level2">
 <h2 id="importing-python-modules">Importing Python modules<a class="anchor" aria-label="anchor" href="#importing-python-modules"></a>
@@ -194,7 +194,7 @@
 <p>Functions and other data within Python modules and classes can be accessed via the <code>$</code> operator (analogous to the way you would interact with an R list, environment, or reference class).</p>
 <p>Imported Python modules support code completion and inline help:</p>
 <p><img src="reference/figures/reticulate_completion.png"></p>
-<p>See <a href="https://rstudio.github.io/reticulate/articles/calling_python.html" class="external-link">Calling Python from R</a> for additional details on interacting with Python objects from within R.</p>
+<p>See <a href="https://rstudio.github.io/reticulate/articles/calling_python.html">Calling Python from R</a> for additional details on interacting with Python objects from within R.</p>
 </div>
 <div class="section level2">
 <h2 id="sourcing-python-scripts">Sourcing Python scripts<a class="anchor" aria-label="anchor" href="#sourcing-python-scripts"></a>
@@ -292,13 +292,13 @@
 </h2>
 <p>The following articles cover the various aspects of using <strong>reticulate</strong>:</p>
 <ul>
-<li><p><a href="https://rstudio.github.io/reticulate/articles/calling_python.html" class="external-link">Calling Python from R</a> — Describes the various ways to access Python objects from R as well as functions available for more advanced interactions and conversion behavior.</p></li>
-<li><p><a href="https://rstudio.github.io/reticulate/articles/r_markdown.html" class="external-link">R Markdown Python Engine</a> — Provides details on using Python chunks within R Markdown documents, including how call Python code from R chunks and vice-versa.</p></li>
-<li><p><a href="https://rstudio.github.io/reticulate/articles/versions.html" class="external-link">Python Version Configuration</a> — Describes facilities for determining which version of Python is used by reticulate within an R session.</p></li>
-<li><p><a href="https://rstudio.github.io/reticulate/articles/python_packages.html" class="external-link">Installing Python Packages</a> — Documentation on installing Python packages from PyPI or Conda, and managing package installations using virtualenvs and Conda environments.</p></li>
-<li><p><a href="https://rstudio.github.io/reticulate/articles/package.html" class="external-link">Using reticulate in an R Package</a> — Guidelines and best practices for using reticulate in an R package.</p></li>
-<li><p><a href="https://rstudio.github.io/reticulate/articles/arrays.html" class="external-link">Arrays in R and Python</a> — Advanced discussion of the differences between arrays in R and Python and the implications for conversion and interoperability.</p></li>
-<li><p><a href="https://rstudio.github.io/reticulate/articles/python_primer.html" class="external-link">Python Primer</a> — Introduction to Python for R users.</p></li>
+<li><p><a href="https://rstudio.github.io/reticulate/articles/calling_python.html">Calling Python from R</a> — Describes the various ways to access Python objects from R as well as functions available for more advanced interactions and conversion behavior.</p></li>
+<li><p><a href="https://rstudio.github.io/reticulate/articles/r_markdown.html">R Markdown Python Engine</a> — Provides details on using Python chunks within R Markdown documents, including how call Python code from R chunks and vice-versa.</p></li>
+<li><p><a href="https://rstudio.github.io/reticulate/articles/versions.html">Python Version Configuration</a> — Describes facilities for determining which version of Python is used by reticulate within an R session.</p></li>
+<li><p><a href="https://rstudio.github.io/reticulate/articles/python_packages.html">Installing Python Packages</a> — Documentation on installing Python packages from PyPI or Conda, and managing package installations using virtualenvs and Conda environments.</p></li>
+<li><p><a href="https://rstudio.github.io/reticulate/articles/package.html">Using reticulate in an R Package</a> — Guidelines and best practices for using reticulate in an R package.</p></li>
+<li><p><a href="https://rstudio.github.io/reticulate/articles/arrays.html">Arrays in R and Python</a> — Advanced discussion of the differences between arrays in R and Python and the implications for conversion and interoperability.</p></li>
+<li><p><a href="https://rstudio.github.io/reticulate/articles/python_primer.html">Python Primer</a> — Introduction to Python for R users.</p></li>
 </ul>
 </div>
 <div class="section level2">
