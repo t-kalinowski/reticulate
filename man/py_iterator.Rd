@@ -4,13 +4,17 @@
 \alias{py_iterator}
 \title{Create a Python iterator from an R function}
 \usage{
-py_iterator(fn, completed = NULL)
+py_iterator(fn, completed = NULL, prefetch = 0L)
 }
 \arguments{
 \item{fn}{R function with no arguments.}
 
 \item{completed}{Special sentinel return value which indicates that
-iteration is complete (defaults to \code{NULL})}
+iteration is complete (defaults to \code{NULL}).}
+
+\item{prefetch}{Number items to prefetch. Set this to a positive integer to
+avoid a deadlock in situations where the generator values are consumed by
+python background threads while the main thread is blocked.}
 }
 \value{
 Python iterator which calls the R function for each iteration.
@@ -25,7 +29,9 @@ values are simply returned from the function.
 
 In Python, the \code{yield} keyword enables successive iterations to use the state
 of previous iterations. In R, this can be done by returning a function that
-mutates its enclosing environment via the \verb{<<-} operator. For example:\if{html}{\out{<div class="sourceCode r">}}\preformatted{sequence_generator <- function(start) \{
+mutates its enclosing environment via the \verb{<<-} operator. For example:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{sequence_generator <- function(start) \{
   value <- start
   function() \{
     value <<- value + 1
@@ -34,7 +40,9 @@ mutates its enclosing environment via the \verb{<<-} operator. For example:\if{h
 \}
 }\if{html}{\out{</div>}}
 
-Then create an iterator using \code{py_iterator()}:\if{html}{\out{<div class="sourceCode r">}}\preformatted{g <- py_iterator(sequence_generator(10))
+Then create an iterator using \code{py_iterator()}:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{g <- py_iterator(sequence_generator(10))
 }\if{html}{\out{</div>}}
 }
 \section{Ending Iteration}{
@@ -44,7 +52,9 @@ In Python, returning from a function without calling \code{yield} indicates the
 end of the iteration. In R however, \code{return} is used to yield values, so
 the end of iteration is indicated by a special return value (\code{NULL} by
 default, however this can be changed using the \code{completed} parameter). For
-example:\if{html}{\out{<div class="sourceCode r">}}\preformatted{sequence_generator <-function(start) \{
+example:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{sequence_generator <-function(start) \{
   value <- start
   function() \{
     value <<- value + 1
@@ -60,7 +70,7 @@ example:\if{html}{\out{<div class="sourceCode r">}}\preformatted{sequence_genera
 \section{Threading}{
 
 
-Some Python APIs use generators to parallelize operations by calling the
+Some Python APIs use generators to parallellize operations by calling the
 generator on a background thread and then consuming its results on
 the foreground thread. The \code{py_iterator()} function creates threadsafe
 iterators by ensuring that the R function is always called on the main

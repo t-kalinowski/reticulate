@@ -4,23 +4,25 @@
 #' R interface to Python modules, classes, and functions. When calling into
 #' Python R data types are automatically converted to their equivalent Python
 #' types. When values are returned from Python to R they are converted back to R
-#' types. The reticulate package is compatible with all versions of Python >= 2.7.
+#' types. The reticulate package is compatible with all versions of Python >= 3.6.
 #' Integration with NumPy requires NumPy version 1.6 or higher.
 #'
-#' @docType package
 #' @name reticulate
+#' @aliases reticulate-package
+#' @keywords internal
 #' @useDynLib reticulate, .registration = TRUE
 #' @importFrom Rcpp evalCpp
-NULL
+"_PACKAGE"
 
 # package level mutable global state
 .globals <- new.env(parent = emptyenv())
 .globals$required_python_version <- NULL
 .globals$use_python_versions <- c()
 .globals$py_config <- NULL
-.globals$delay_load_module <- NULL
-.globals$delay_load_environment <- NULL
-.globals$delay_load_priority <- 0
+.globals$delay_load_imports <- data.frame(module = character(),
+                                          priority = integer(),
+                                          environment = character(),
+                                          stringsAsFactors = FALSE)
 .globals$suppress_warnings_handlers <- list()
 .globals$class_filters <- list()
 .globals$py_repl_active <- FALSE
@@ -29,61 +31,70 @@ is_python_initialized <- function() {
   !is.null(.globals$py_config)
 }
 
+is_epheremal_venv_initialized <- function() {
+  isTRUE(.globals$py_config$ephemeral)
+}
+
+is_python_finalized <- function() {
+  identical(.globals$finalized, TRUE)
+}
 
 ensure_python_initialized <- function(required_module = NULL) {
 
   # nothing to do if python is initialized
   if (is_python_initialized())
     return()
-  
-  # give delay load modules priority
-  use_environment <- NULL
-  if (!is.null(.globals$delay_load_module)) {
-    required_module <- .globals$delay_load_module
-    use_environment <- .globals$delay_load_environment
-    .globals$delay_load_module <- NULL # one shot
-    .globals$delay_load_environment <- NULL
-    .globals$delay_load_priority <- 0
-  }
+
+  if (is_python_finalized())
+    stop("py_initialize() cannot be called more than once per R session or after py_finalize(). Please start a new R session.")
 
   # notify front-end (if any) that Python is about to be initialized
   callback <- getOption("reticulate.python.beforeInitialized")
   if (is.function(callback))
     callback()
-  
+
+  # make sure this module is used for an environment name.
+  if(!is.null(required_module))
+    register_delay_load_import(required_module)
+
   # perform initialization
-  .globals$py_config <- initialize_python(required_module, use_environment)
-  
+  .globals$py_config <- initialize_python()
+
+  # clear the global list of delay_load requests
+  .globals$delay_load_imports <- NULL
+
   # remap output streams to R output handlers
   remap_output_streams()
-  
+  set_knitr_python_stdout_hook()
+
+  if (is_windows() && ( is_rstudio() || is_positron() ))
+    import("rpytools.subprocess")$patch_subprocess_Popen()
+
   # generate 'R' helper object
   py_inject_r()
-  
+
   # inject hooks
   py_inject_hooks()
-  
+
   # install required packages
   configure_environment()
-  
+
   # notify front-end (if any) that Python has been initialized
   callback <- getOption("reticulate.python.afterInitialized")
   if (is.null(callback))
     callback <- getOption("reticulate.initialized")
-  
+
   if (is.function(callback))
     callback()
-  
-  # set up a Python signal handler
-  signals <- import("rpytools.signals")
-  signals$initialize(py_interrupts_pending)
-  
-  # register C-level interrupt handler
-  py_register_interrupt_handler()
-  
+
+  # re-install interrupt handler -- note that RStudio tries to re-install its
+  # own interrupt handler when reticulate is initialized, but reticulate needs
+  # to handle interrupts itself (and it can do so compatibly with RStudio)
+  install_interrupt_handlers()
+
   # call init hooks
   call_init_hooks()
-  
+
 }
 
 
@@ -100,13 +111,13 @@ initialize_python <- function(required_module = NULL, use_environment = NULL) {
 
   # provide hint to install Miniconda if no Python is found
   python_not_found <- function(msg) {
-    hint <- "Use reticulate::install_miniconda() if you'd like to install a Miniconda Python environment."
+    hint <- 'See the Python "Order of Discovery" here: https://rstudio.github.io/reticulate/articles/versions.html#order-of-discovery.'
     stop(paste(msg, hint, sep = "\n"), call. = FALSE)
   }
 
   # resolve top level module for search
   if (!is.null(required_module))
-    required_module <- strsplit(required_module, ".", fixed = TRUE)[[1]][[1]]
+    required_module <- strsplit(required_module, ".", fixed = TRUE)[[1L]][[1L]]
 
   # find configuration
   config <- local({
@@ -162,23 +173,24 @@ initialize_python <- function(required_module = NULL, use_environment = NULL) {
 
   # munge PATH for python (needed so libraries can be found in some cases)
   oldpath <- python_munge_path(config$python)
-  
+  # also munge LD_LIBRARY_PATH on Linux
+  # (needed for Python 3.12 preinstalled on GHA runners, perhaps other installations too)
+  prefix_python_lib_to_ld_library_path(config$python)
+
   # on macOS, we need to do some gymnastics to ensure that Anaconda
   # libraries can be properly discovered (and this will only work in RStudio)
   if (is_osx()) local({
-    
+
     symlink <- Sys.getenv("RSTUDIO_FALLBACK_LIBRARY_PATH", unset = NA)
     if (is.na(symlink))
       return()
-    
-    if (file.exists(symlink))
-      unlink(symlink)
-    
+
+    unlink(symlink)
     target <- dirname(config$libpython)
     file.symlink(target, symlink)
-    
+
   })
-  
+
   # initialize python
   tryCatch({
 
@@ -204,7 +216,8 @@ initialize_python <- function(required_module = NULL, use_environment = NULL) {
                     config$libpython,
                     config$pythonhome,
                     config$virtualenv_activate,
-                    config$version >= "3.0",
+                    config$version$major,
+                    config$version$minor,
                     interactive(),
                     numpy_load_error)
 
@@ -224,65 +237,64 @@ initialize_python <- function(required_module = NULL, use_environment = NULL) {
 
   )
 
+  # allow enabling the Python finalizer
+  reg.finalizer(.globals, function(e) {
+    try(py_allow_threads_impl(FALSE))
+    if (tolower(Sys.getenv("RETICULATE_ENABLE_PYTHON_FINALIZER")) %in% c("true", "1", "yes"))
+      py_finalize()
+  }, onexit = TRUE)
+
   # set available flag indicating we have py bindings
   config$available <- TRUE
 
   if (py_embedded) {
-    
+
     # we need to insert path to rpytools directly for embedded R
     path <- system.file("python", package = "reticulate")
     fmt <- "import sys; sys.path.append(%s)"
     cmd <- sprintf(fmt, shQuote(path))
-    
+
     py_run_string_impl(cmd)
-    
+
   }
 
+  local({
+    # patch sys.executable to point to python.exe, not Rterm.exe or rsession-utf8.exe, #1258
+    patch <- sprintf("import sys; sys.executable  = r'''%s'''",
+                     config$executable)
+    py_run_string_impl(patch, local = TRUE)
+  })
+
+  if (nzchar(config$base_executable)) local({
+    # just like sys.executable, patch to point to python.exe, not Rterm.exe
+    # need to patch for multiprocessing to work on windows, perhaps other things too.
+    # in venvs, _base_executable should point to the venv starter, #1430
+    patch <- sprintf("import sys; sys._base_executable = r'''%s'''",
+                     config$base_executable)
+    py_run_string_impl(patch, local = TRUE)
+  })
+
   # ensure modules can be imported from the current working directory
-  py_run_string_impl("import sys; sys.path.insert(0, '')")
+  py_run_string_impl("import sys; sys.path.insert(0, '')", local = TRUE)
 
   # if this is a conda installation, set QT_QPA_PLATFORM_PLUGIN_PATH
   # https://github.com/rstudio/reticulate/issues/586
   py_set_qt_qpa_platform_plugin_path(config)
 
-  # notify the user if the loaded version of Python isn't the same
-  # as the requested version of python
-  local({
-
-    # nothing to do if user didn't request any version
-    requested_versions <- reticulate_python_versions()
-    if (length(requested_versions) == 0)
-      return()
-
-    # if we loaded one of the requested versions, everything is ok
-    actual <- normalizePath(config$python, winslash = "/", mustWork = FALSE)
-    requested <- normalizePath(requested_versions, winslash = "/", mustWork = FALSE)
-    if (actual %in% requested)
-      return()
-
-    # otherwise, warn that we were unable to honor their request
-    if (length(requested_versions) == 1) {
-      fmt <- paste(
-        "Python '%s' was requested but '%s' was loaded instead",
-        "(see reticulate::py_config() for more information)"
-      )
-      msg <- sprintf(fmt, requested_versions[[1]], config$python)
-      warning(msg, call. = FALSE)
-    } else {
-      fmt <- paste(
-        "could not honor request to load desired versions of Python; '%s' was loaded instead",
-        "(see reticulate::py_config() for more information)"
-      )
-      msg <- sprintf(fmt, config$python)
-      warning(msg, call. = FALSE)
+  if (was_python_initialized_by_reticulate()) {
+    allow_threads <- Sys.getenv("RETICULATE_ALLOW_THREADS", "true")
+    allow_threads <- tolower(allow_threads) %in% c("true", "1", "yes")
+    if (allow_threads) {
+      py_allow_threads_impl(TRUE)
     }
-
-  })
+  }
 
   # return config
   config
 }
 
+# unused presently, formerly called from initialize_python()
+# https://github.com/rstudio/reticulate/commit/e8c82a1f95eb97c4e5fc27b6550a4498827438e0#r122213856
 check_forbidden_initialization <- function() {
 
   if (is_python_initialized())

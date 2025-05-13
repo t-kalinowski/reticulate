@@ -13,73 +13,8 @@ is_python3 <- function() {
     .Call(`_reticulate_is_python3`)
 }
 
-#' Get or clear the last Python error encountered
-#'
-#' @return For `py_last_error()`, a list with the type, value,
-#' and traceback for the last Python error encountered (can be
-#' `NULL` if no error has yet been encountered).
-#'
-#' @export
-py_last_error <- function() {
-    .Call(`_reticulate_py_last_error`)
-}
-
-#' @rdname py_last_error
-#' @export
-py_clear_last_error <- function() {
-    invisible(.Call(`_reticulate_py_clear_last_error`))
-}
-
-py_none_impl <- function() {
-    .Call(`_reticulate_py_none_impl`)
-}
-
-py_is_callable <- function(x) {
-    .Call(`_reticulate_py_is_callable`, x)
-}
-
-py_get_formals <- function(func) {
-    .Call(`_reticulate_py_get_formals`, func)
-}
-
-r_to_py_impl <- function(object, convert) {
-    .Call(`_reticulate_r_to_py_impl`, object, convert)
-}
-
-py_activate_virtualenv <- function(script) {
-    invisible(.Call(`_reticulate_py_activate_virtualenv`, script))
-}
-
-main_process_python_info <- function() {
-    .Call(`_reticulate_main_process_python_info`)
-}
-
-py_initialize <- function(python, libpython, pythonhome, virtualenv_activate, python3, interactive, numpy_load_error) {
-    invisible(.Call(`_reticulate_py_initialize`, python, libpython, pythonhome, virtualenv_activate, python3, interactive, numpy_load_error))
-}
-
-py_finalize <- function() {
-    invisible(.Call(`_reticulate_py_finalize`))
-}
-
-py_is_none <- function(x) {
-    .Call(`_reticulate_py_is_none`, x)
-}
-
-py_compare_impl <- function(a, b, op) {
-    .Call(`_reticulate_py_compare_impl`, a, b, op)
-}
-
-py_str_impl <- function(x) {
-    .Call(`_reticulate_py_str_impl`, x)
-}
-
-py_print <- function(x) {
-    invisible(.Call(`_reticulate_py_print`, x))
-}
-
-py_is_function <- function(x) {
-    .Call(`_reticulate_py_is_function`, x)
+was_python_initialized_by_reticulate <- function() {
+    .Call(`_reticulate_was_python_initialized_by_reticulate`)
 }
 
 #' Check if a Python object is a null externalptr
@@ -109,6 +44,98 @@ py_validate_xptr <- function(x) {
     invisible(.Call(`_reticulate_py_validate_xptr`, x))
 }
 
+py_flush_output <- function() {
+    .Call(`_reticulate_py_flush_output`)
+}
+
+conditionMessage_from_py_exception <- function(exc) {
+    .Call(`_reticulate_conditionMessage_from_py_exception`, exc)
+}
+
+py_none_impl <- function() {
+    .Call(`_reticulate_py_none_impl`)
+}
+
+py_is_callable <- function(x) {
+    .Call(`_reticulate_py_is_callable`, x)
+}
+
+#' Check if x is a Python object
+#'
+#' Checks if `x` is a Python object, more efficiently
+#' than `inherits(x, "python.builtin.object")`.
+#'
+#' @param x An \R or Python.
+#'
+#' @return \code{TRUE} or \code{FALSE}.
+#' @export
+#' @keywords internal
+is_py_object <- function(x) {
+    .Call(`_reticulate_is_py_object`, x)
+}
+
+py_to_r_cpp <- function(x) {
+    .Call(`_reticulate_py_to_r_cpp`, x)
+}
+
+py_get_formals <- function(callable) {
+    .Call(`_reticulate_py_get_formals`, callable)
+}
+
+r_to_py_impl <- function(object, convert) {
+    .Call(`_reticulate_r_to_py_impl`, object, convert)
+}
+
+install_interrupt_handlers <- function() {
+    invisible(.Call(`_reticulate_install_interrupt_handlers`))
+}
+
+py_activate_virtualenv <- function(script) {
+    invisible(.Call(`_reticulate_py_activate_virtualenv`, script))
+}
+
+main_process_python_info <- function() {
+    .Call(`_reticulate_main_process_python_info`)
+}
+
+py_clear_error <- function() {
+    invisible(.Call(`_reticulate_py_clear_error`))
+}
+
+py_initialize <- function(python, libpython, pythonhome, virtualenv_activate, python_major_version, python_minor_version, interactive, numpy_load_error) {
+    invisible(.Call(`_reticulate_py_initialize`, python, libpython, pythonhome, virtualenv_activate, python_major_version, python_minor_version, interactive, numpy_load_error))
+}
+
+py_finalize <- function() {
+    invisible(.Call(`_reticulate_py_finalize`))
+}
+
+py_is_none <- function(x) {
+    .Call(`_reticulate_py_is_none`, x)
+}
+
+py_compare_impl <- function(a, b, op) {
+    .Call(`_reticulate_py_compare_impl`, a, b, op)
+}
+
+py_str_impl <- function(x) {
+    .Call(`_reticulate_py_str_impl`, x)
+}
+
+#' @export
+#' @rdname py_str
+py_repr <- function(object) {
+    .Call(`_reticulate_py_repr`, object)
+}
+
+py_print <- function(x) {
+    invisible(.Call(`_reticulate_py_print`, x))
+}
+
+py_is_function <- function(x) {
+    .Call(`_reticulate_py_is_function`, x)
+}
+
 py_numpy_available_impl <- function() {
     .Call(`_reticulate_py_numpy_available_impl`)
 }
@@ -117,32 +144,87 @@ py_list_attributes_impl <- function(x) {
     .Call(`_reticulate_py_list_attributes_impl`, x)
 }
 
-py_has_attr_impl <- function(x, name) {
-    .Call(`_reticulate_py_has_attr_impl`, x, name)
+py_get_convert <- function(x) {
+    .Call(`_reticulate_py_get_convert`, x)
 }
 
-py_get_attr_impl <- function(x, key, silent = FALSE) {
-    .Call(`_reticulate_py_get_attr_impl`, x, key, silent)
+py_set_convert <- function(x, value) {
+    .Call(`_reticulate_py_set_convert`, x, value)
 }
 
-py_get_item_impl <- function(x, key, silent = FALSE) {
-    .Call(`_reticulate_py_get_item_impl`, x, key, silent)
+py_new_ref <- function(x, convert) {
+    .Call(`_reticulate_py_new_ref`, x, convert)
 }
 
-py_set_attr_impl <- function(x, name, value) {
-    invisible(.Call(`_reticulate_py_set_attr_impl`, x, name, value))
+#' Check if a Python object has an attribute
+#'
+#' Check whether a Python object \code{x} has an attribute
+#' \code{name}.
+#'
+#' @param x A python object.
+#' @param name The attribute to be accessed.
+#'
+#' @return \code{TRUE} if the object has the attribute \code{name}, and
+#'   \code{FALSE} otherwise.
+#' @export
+py_has_attr <- function(x, name) {
+    .Call(`_reticulate_py_has_attr`, x, name)
 }
 
-py_del_attr_impl <- function(x, name) {
-    invisible(.Call(`_reticulate_py_del_attr_impl`, x, name))
+#' Get an attribute of a Python object
+#'
+#' @param x Python object
+#' @param name Attribute name
+#' @param silent \code{TRUE} to return \code{NULL} if the attribute
+#'  doesn't exist (default is \code{FALSE} which will raise an error)
+#'
+#' @return Attribute of Python object
+#' @export
+py_get_attr <- function(x, name, silent = FALSE) {
+    .Call(`_reticulate_py_get_attr`, x, name, silent)
 }
 
-py_set_item_impl <- function(x, key, val) {
-    invisible(.Call(`_reticulate_py_set_item_impl`, x, key, val))
+#' Set an attribute of a Python object
+#'
+#' @param x Python object
+#' @param name Attribute name
+#' @param value Attribute value
+#'
+#' @export
+py_set_attr <- function(x, name, value) {
+    invisible(.Call(`_reticulate_py_set_attr`, x, name, value))
 }
 
-py_get_attr_types_impl <- function(x, attrs, resolve_properties) {
-    .Call(`_reticulate_py_get_attr_types_impl`, x, attrs, resolve_properties)
+#' Delete an attribute of a Python object
+#'
+#' @param x A Python object.
+#' @param name The attribute name.
+#'
+#' @export
+py_del_attr <- function(x, name) {
+    invisible(.Call(`_reticulate_py_del_attr`, x, name))
+}
+
+#' @rdname py_get_item
+#' @export
+py_get_item <- function(x, key, silent = FALSE) {
+    .Call(`_reticulate_py_get_item`, x, key, silent)
+}
+
+#' @rdname py_get_item
+#' @export
+py_set_item <- function(x, key, value) {
+    invisible(.Call(`_reticulate_py_set_item`, x, key, value))
+}
+
+#' @rdname py_get_item
+#' @export
+py_del_item <- function(x, key) {
+    invisible(.Call(`_reticulate_py_del_item`, x, key))
+}
+
+py_get_attr_types <- function(x, attrs, resolve_properties = FALSE) {
+    .Call(`_reticulate_py_get_attr_types`, x, attrs, resolve_properties)
 }
 
 py_ref_to_r_with_convert <- function(x, convert) {
@@ -201,14 +283,6 @@ py_list_submodules <- function(module) {
     .Call(`_reticulate_py_list_submodules`, module)
 }
 
-py_iterate <- function(x, f) {
-    .Call(`_reticulate_py_iterate`, x, f)
-}
-
-py_iter_next <- function(iterator, completed) {
-    .Call(`_reticulate_py_iter_next`, iterator, completed)
-}
-
 py_run_string_impl <- function(code, local = FALSE, convert = TRUE) {
     .Call(`_reticulate_py_run_string_impl`, code, local, convert)
 }
@@ -221,8 +295,8 @@ py_eval_impl <- function(code, convert = TRUE) {
     .Call(`_reticulate_py_eval_impl`, code, convert)
 }
 
-py_convert_pandas_series <- function(series) {
-    .Call(`_reticulate_py_convert_pandas_series`, series)
+py_convert_pandas_series <- function(series_) {
+    .Call(`_reticulate_py_convert_pandas_series`, series_)
 }
 
 py_convert_pandas_df <- function(df) {
@@ -237,23 +311,65 @@ r_convert_date <- function(dates, convert) {
     .Call(`_reticulate_r_convert_date`, dates, convert)
 }
 
-py_set_interrupt_impl <- function() {
-    invisible(.Call(`_reticulate_py_set_interrupt_impl`))
+py_list_length <- function(x) {
+    .Call(`_reticulate_py_list_length`, x)
+}
+
+py_len_impl <- function(x, defaultValue = NULL) {
+    .Call(`_reticulate_py_len_impl`, x, defaultValue)
+}
+
+py_bool_impl <- function(x, silent = FALSE) {
+    .Call(`_reticulate_py_bool_impl`, x, silent)
+}
+
+py_has_method <- function(object, name) {
+    .Call(`_reticulate_py_has_method`, object, name)
+}
+
+#' Unique identifer for Python object
+#'
+#' Get a globally unique identifier for a Python object.
+#'
+#' @note In the current implementation of CPython this is the
+#'  memory address of the object.
+#'
+#' @param object Python object
+#'
+#' @return Unique identifer (as string) or `NULL`
+#'
+#' @export
+py_id <- function(object) {
+    .Call(`_reticulate_py_id`, object)
+}
+
+py_capsule <- function(x) {
+    .Call(`_reticulate_py_capsule`, x)
+}
+
+py_slice <- function(start = NULL, stop = NULL, step = NULL) {
+    .Call(`_reticulate_py_slice`, start, stop, step)
+}
+
+#' @rdname iterate
+#' @export
+as_iterator <- function(x) {
+    .Call(`_reticulate_as_iterator`, x)
+}
+
+py_iter_next <- function(iterator, completed) {
+    .Call(`_reticulate_py_iter_next`, iterator, completed)
+}
+
+py_iterate <- function(x, f, simplify = TRUE) {
+    .Call(`_reticulate_py_iterate`, x, f, simplify)
+}
+
+py_allow_threads_impl <- function(allow = TRUE) {
+    .Call(`_reticulate_py_allow_threads_impl`, allow)
 }
 
 readline <- function(prompt) {
     .Call(`_reticulate_readline`, prompt)
-}
-
-py_register_interrupt_handler <- function() {
-    invisible(.Call(`_reticulate_py_register_interrupt_handler`))
-}
-
-py_clear_error <- function() {
-    invisible(.Call(`_reticulate_py_clear_error`))
-}
-
-py_interrupts_pending <- function(reset) {
-    .Call(`_reticulate_py_interrupts_pending`, reset)
 }
 

@@ -95,6 +95,7 @@ typedef int (*inquiry)(PyObject *);
 typedef int (*visitproc)(PyObject *, void *);
 typedef int (*traverseproc)(PyObject *, visitproc, void *);
 typedef void (*freefunc)(void *);
+typedef void (*PyOS_sighandler_t)(int);
 
 typedef struct PyModuleDef_Base {
   PyObject_HEAD3
@@ -116,8 +117,8 @@ typedef struct PyModuleDef{
 } PyModuleDef;
 
 typedef struct PyCompilerFlags{
-  int cf_flags;  
-  int cf_feature_version; 
+  int cf_flags;
+  int cf_feature_version;
 } PyCompilerFlags;
 
 typedef Py_ssize_t Py_hash_t;
@@ -126,6 +127,7 @@ LIBPYTHON_EXTERN PyTypeObject* PyFunction_Type;
 LIBPYTHON_EXTERN PyTypeObject* PyModule_Type;
 LIBPYTHON_EXTERN PyTypeObject* PyType_Type;
 LIBPYTHON_EXTERN PyTypeObject* PyProperty_Type;
+LIBPYTHON_EXTERN PyTypeObject* PyMethod_Type;
 
 LIBPYTHON_EXTERN PyObject* Py_None;
 LIBPYTHON_EXTERN PyObject* Py_Unicode;
@@ -136,32 +138,69 @@ LIBPYTHON_EXTERN PyObject* Py_Bool;
 LIBPYTHON_EXTERN PyObject* Py_True;
 LIBPYTHON_EXTERN PyObject* Py_False;
 LIBPYTHON_EXTERN PyObject* Py_Dict;
+LIBPYTHON_EXTERN PyObject* Py_DictClass;
 LIBPYTHON_EXTERN PyObject* Py_Float;
 LIBPYTHON_EXTERN PyObject* Py_List;
 LIBPYTHON_EXTERN PyObject* Py_Tuple;
 LIBPYTHON_EXTERN PyObject* Py_Complex;
 LIBPYTHON_EXTERN PyObject* Py_ByteArray;
 LIBPYTHON_EXTERN PyObject* PyExc_KeyboardInterrupt;
+LIBPYTHON_EXTERN PyObject* PyExc_AttributeError;
+LIBPYTHON_EXTERN PyObject* PyExc_RuntimeError;
+LIBPYTHON_EXTERN PyObject* PyExc_ValueError;
 
 void initialize_type_objects(bool python3);
 
 #define Py_TYPE(ob) (((PyObject*)(ob))->ob_type)
 
-#define PyUnicode_Check(o)   (Py_TYPE(o) == Py_TYPE(Py_Unicode))
+#define PyType_HasFeature(type, feature)  ((PyType_GetFlags(type) & (feature)) != 0)
+#define PyType_FastSubclass(type, flag) PyType_HasFeature(type, flag)
+
+#define Py_TPFLAGS_LONG_SUBCLASS        (1UL << 24)
+#define PyLong_Check(op) PyType_FastSubclass(Py_TYPE(op), Py_TPFLAGS_LONG_SUBCLASS)
+#define PyLong_CheckExact(o)      (Py_TYPE(o) == Py_TYPE(Py_Long))
+
+#define Py_TPFLAGS_LIST_SUBCLASS        (1UL << 25)
+#define PyList_Check(op) PyType_FastSubclass(Py_TYPE(op), Py_TPFLAGS_LIST_SUBCLASS)
+#define PyList_CheckExact(o)      (Py_TYPE(o) == Py_TYPE(Py_List))
+
+#define Py_TPFLAGS_TUPLE_SUBCLASS       (1UL << 26)
+#define PyTuple_Check(op) PyType_FastSubclass(Py_TYPE(op), Py_TPFLAGS_TUPLE_SUBCLASS)
+#define PyTuple_CheckExact(o)     (Py_TYPE(o) == Py_TYPE(Py_Tuple))
+
+#define Py_TPFLAGS_BYTES_SUBCLASS       (1UL << 27)
+#define PyBytes_Check(op) PyType_FastSubclass(Py_TYPE(op), Py_TPFLAGS_BYTES_SUBCLASS)
+
+#define Py_TPFLAGS_UNICODE_SUBCLASS     (1UL << 28)
+#define PyUnicode_Check(op) PyType_FastSubclass(Py_TYPE(op), Py_TPFLAGS_UNICODE_SUBCLASS)
+#define PyUnicode_CheckExact(o)   (Py_TYPE(o) == Py_TYPE(Py_Unicode))
+
+#define Py_TPFLAGS_DICT_SUBCLASS        (1UL << 29)
+#define PyDict_Check(op) PyType_FastSubclass(Py_TYPE(op), Py_TPFLAGS_DICT_SUBCLASS)
+#define PyDict_CheckExact(o)      (Py_TYPE(o) == Py_TYPE(Py_Dict))
+
+#define Py_TPFLAGS_BASE_EXC_SUBCLASS    (1UL << 30)
+#define PyExceptionInstance_Check(x) PyType_FastSubclass(Py_TYPE(x), Py_TPFLAGS_BASE_EXC_SUBCLASS)
+
+#define Py_TPFLAGS_TYPE_SUBCLASS        (1UL << 31)
+#define PyType_Check(op) PyType_FastSubclass(Py_TYPE(op), Py_TPFLAGS_TYPE_SUBCLASS)
+#define PyType_CheckExact(op) (Py_TYPE(op) == PyType_Type)
+
 #define PyString_Check(o)    (Py_TYPE(o) == Py_TYPE(Py_String))
 #define PyInt_Check(o)       (Py_TYPE(o) == Py_TYPE(Py_Int))
-#define PyLong_Check(o)      (Py_TYPE(o) == Py_TYPE(Py_Long))
-#define PyDict_Check(o)      (Py_TYPE(o) == Py_TYPE(Py_Dict))
 #define PyFloat_Check(o)     (Py_TYPE(o) == Py_TYPE(Py_Float))
-#define PyTuple_Check(o)     (Py_TYPE(o) == Py_TYPE(Py_Tuple))
-#define PyList_Check(o)      (Py_TYPE(o) == Py_TYPE(Py_List))
 #define PyComplex_Check(o)   (Py_TYPE(o) == Py_TYPE(Py_Complex))
 #define PyByteArray_Check(o) (Py_TYPE(o) == Py_TYPE(Py_ByteArray))
 
 #define PyBool_Check(o)      ((o == Py_False) || (o == Py_True))
 #define PyFunction_Check(op) ((PyTypeObject*)(Py_TYPE(op)) == PyFunction_Type)
+#define PyMethod_Check(op)   ((PyTypeObject *)(Py_TYPE(op)) == PyMethod_Type)
+#define PyExceptionClass_Check(x)                                       \
+    (PyType_Check((x)) &&                                               \
+     PyType_FastSubclass((PyTypeObject*)(x), Py_TPFLAGS_BASE_EXC_SUBCLASS))
 
-LIBPYTHON_EXTERN void (*Py_Initialize)();
+LIBPYTHON_EXTERN void (*Py_InitializeEx)(int);
+LIBPYTHON_EXTERN void (*Py_Finalize)();
 LIBPYTHON_EXTERN int (*Py_IsInitialized)();
 LIBPYTHON_EXTERN const char* (*Py_GetVersion)();
 LIBPYTHON_EXTERN char* (*Py_GetProgramFullPath_v2)();
@@ -169,6 +208,7 @@ LIBPYTHON_EXTERN wchar_t* (*Py_GetProgramFullPath)();
 
 
 LIBPYTHON_EXTERN int (*Py_AddPendingCall)(int (*func)(void *), void *arg);
+LIBPYTHON_EXTERN int (*Py_MakePendingCalls)();
 LIBPYTHON_EXTERN void (*PyErr_SetInterrupt)();
 LIBPYTHON_EXTERN void (*PyErr_CheckSignals)();
 
@@ -191,6 +231,7 @@ LIBPYTHON_EXTERN void (*Py_DecRef)(PyObject *);
 
 LIBPYTHON_EXTERN int (*PyObject_Print)(PyObject* o, FILE* fp, int flags);
 LIBPYTHON_EXTERN PyObject* (*PyObject_Str)(PyObject *);
+LIBPYTHON_EXTERN PyObject* (*PyObject_Repr)(PyObject *);
 
 LIBPYTHON_EXTERN int (*PyObject_IsInstance)(PyObject *object, PyObject *typeorclass);
 
@@ -219,6 +260,11 @@ LIBPYTHON_EXTERN PyObject* (*PyObject_GetAttrString)(PyObject*, const char *);
 LIBPYTHON_EXTERN int (*PyObject_HasAttrString)(PyObject*, const char *);
 LIBPYTHON_EXTERN int (*PyObject_SetAttrString)(PyObject*, const char *, PyObject*);
 
+// added in Python 3.13
+LIBPYTHON_EXTERN int (*PyObject_HasAttrStringWithError)(PyObject*, const char *);
+LIBPYTHON_EXTERN int (*PyObject_GetOptionalAttrString)(PyObject* obj, const char* attr_name, PyObject** result);
+
+
 LIBPYTHON_EXTERN PyObject* (*PyObject_GetItem)(PyObject*, PyObject*);
 LIBPYTHON_EXTERN int (*PyObject_SetItem)(PyObject*, PyObject*, PyObject*);
 LIBPYTHON_EXTERN int (*PyObject_DelItem)(PyObject*, PyObject*);
@@ -244,6 +290,7 @@ LIBPYTHON_EXTERN int (*PyString_AsStringAndSize)(
 
 LIBPYTHON_EXTERN PyObject* (*PyString_FromString)(const char *);
 LIBPYTHON_EXTERN PyObject* (*PyString_FromStringAndSize)(const char *, Py_ssize_t);
+LIBPYTHON_EXTERN int (*PyUnicode_CompareWithASCIIString)(PyObject *unicode, const char *string);
 
 LIBPYTHON_EXTERN PyObject* (*PyUnicode_EncodeLocale)(PyObject *unicode, const char *errors);
 LIBPYTHON_EXTERN PyObject* (*PyUnicode_AsEncodedString)(PyObject *unicode, const char *encoding, const char *errors);
@@ -254,6 +301,8 @@ LIBPYTHON_EXTERN int (*PyBytes_AsStringAndSize)(
   (only possible for 0-terminated
   strings) */
 );
+LIBPYTHON_EXTERN const char* (*PyUnicode_AsUTF8)(PyObject *unicode);
+
 #ifdef _WIN32
 LIBPYTHON_EXTERN PyObject* (*PyUnicode_AsMBCSString)(PyObject *unicode);
 #endif
@@ -265,31 +314,41 @@ LIBPYTHON_EXTERN char* (*PyByteArray_AsString)(PyObject *bytearray);
 LIBPYTHON_EXTERN PyObject* (*PyUnicode_FromString)(const char *u);
 
 LIBPYTHON_EXTERN void (*PyErr_Clear)();
+LIBPYTHON_EXTERN void (*PyErr_Print)();
+
+LIBPYTHON_EXTERN void (*PyErr_PrintEx)(int set_sys_last_vars);
 LIBPYTHON_EXTERN void (*PyErr_Fetch)(PyObject **, PyObject **, PyObject **);
+LIBPYTHON_EXTERN void (*PyErr_Restore)(PyObject *, PyObject *, PyObject *);
 LIBPYTHON_EXTERN void (*PyErr_SetNone)(PyObject*);
+LIBPYTHON_EXTERN void (*PyErr_SetObject)(PyObject*, PyObject*);
+LIBPYTHON_EXTERN void (*PyErr_SetString)(PyObject*, const char *);
 LIBPYTHON_EXTERN void (*PyErr_BadArgument)();
 LIBPYTHON_EXTERN PyObject* (*PyErr_Occurred)(void);
 LIBPYTHON_EXTERN void (*PyErr_NormalizeException)(PyObject**, PyObject**, PyObject**);
 LIBPYTHON_EXTERN int (*PyErr_GivenExceptionMatches)(PyObject *given, PyObject *exc);
 LIBPYTHON_EXTERN int (*PyErr_ExceptionMatches)(PyObject *exc);
+LIBPYTHON_EXTERN int (*PyException_SetTraceback)(PyObject *ex, PyObject *tb);
 
 LIBPYTHON_EXTERN int (*PyCallable_Check)(PyObject *);
 
 LIBPYTHON_EXTERN PyObject* (*PyModule_GetDict)(PyObject *);
 LIBPYTHON_EXTERN PyObject* (*PyImport_AddModule)(const char *);
 
+LIBPYTHON_EXTERN PyObject* (*PyRun_FileEx)(FILE*, const char*, int, PyObject*, PyObject*, int);
 LIBPYTHON_EXTERN PyObject* (*PyRun_StringFlags)(const char *, int, PyObject*, PyObject*, void*);
 LIBPYTHON_EXTERN PyObject* (*Py_CompileString)(const char *str, const char *filename, int start);
 LIBPYTHON_EXTERN PyObject* (*PyEval_EvalCode)(PyObject *co, PyObject *globals, PyObject *locals);
 
 LIBPYTHON_EXTERN PyObject* (*PyObject_GetIter)(PyObject *);
 LIBPYTHON_EXTERN PyObject* (*PyIter_Next)(PyObject *);
+LIBPYTHON_EXTERN int (*PyIter_Check)(PyObject *); // only available beginning Python 3.10
 
 typedef void (*PyCapsule_Destructor)(PyObject *);
 LIBPYTHON_EXTERN PyObject* (*PyCapsule_New)(void *pointer, const char *name, PyCapsule_Destructor destructor);
 LIBPYTHON_EXTERN void* (*PyCapsule_GetPointer)(PyObject *capsule, const char *name);
 LIBPYTHON_EXTERN void* (*PyCapsule_GetContext)(PyObject *capsule);
 LIBPYTHON_EXTERN int (*PyCapsule_SetContext)(PyObject *capsule, void *context);
+LIBPYTHON_EXTERN int (*PyCapsule_IsValid)(PyObject *capsule, const char *name);
 
 
 LIBPYTHON_EXTERN PyObject* (*PyDict_New)(void);
@@ -297,6 +356,7 @@ LIBPYTHON_EXTERN int (*PyDict_Contains)(PyObject *mp, PyObject *key);
 LIBPYTHON_EXTERN PyObject* (*PyDict_GetItem)(PyObject *mp, PyObject *key);
 LIBPYTHON_EXTERN int (*PyDict_SetItem)(PyObject *mp, PyObject *key, PyObject *item);
 LIBPYTHON_EXTERN int (*PyDict_SetItemString)(PyObject *dp, const char *key, PyObject *item);
+LIBPYTHON_EXTERN int (*PyDict_DelItemString)(PyObject *dp, const char *key);
 LIBPYTHON_EXTERN int (*PyDict_Next)(
     PyObject *mp, Py_ssize_t *pos, PyObject **key, PyObject **value);
 LIBPYTHON_EXTERN PyObject* (*PyDict_Keys)(PyObject *mp);
@@ -304,10 +364,12 @@ LIBPYTHON_EXTERN PyObject* (*PyDict_Values)(PyObject *mp);
 LIBPYTHON_EXTERN Py_ssize_t (*PyDict_Size)(PyObject *mp);
 LIBPYTHON_EXTERN PyObject* (*PyDict_Copy)(PyObject *mp);
 
+LIBPYTHON_EXTERN PyObject*  (*PyMapping_Items)(PyObject *o);
 LIBPYTHON_EXTERN PyObject* (*PyInt_FromLong)(long);
 LIBPYTHON_EXTERN long (*PyInt_AsLong)(PyObject *);
 LIBPYTHON_EXTERN PyObject* (*PyLong_FromLong)(long);
 LIBPYTHON_EXTERN long (*PyLong_AsLong)(PyObject *);
+LIBPYTHON_EXTERN PyObject* (*PySlice_New)(PyObject *start, PyObject *stop, PyObject *step);
 
 LIBPYTHON_EXTERN PyObject* (*PyBool_FromLong)(long);
 
@@ -321,6 +383,7 @@ LIBPYTHON_EXTERN double (*PyComplex_ImagAsDouble)(PyObject *op);
 LIBPYTHON_EXTERN void* (*PyCObject_AsVoidPtr)(PyObject *);
 
 LIBPYTHON_EXTERN int (*PyType_IsSubtype)(PyTypeObject *, PyTypeObject *);
+LIBPYTHON_EXTERN unsigned long (*PyType_GetFlags)(PyTypeObject *type);
 
 LIBPYTHON_EXTERN void (*Py_SetProgramName)(char *);
 LIBPYTHON_EXTERN void (*Py_SetProgramName_v3)(wchar_t *);
@@ -328,10 +391,14 @@ LIBPYTHON_EXTERN void (*Py_SetProgramName_v3)(wchar_t *);
 LIBPYTHON_EXTERN void (*Py_SetPythonHome)(char *);
 LIBPYTHON_EXTERN void (*Py_SetPythonHome_v3)(wchar_t *);
 
+LIBPYTHON_EXTERN PyOS_sighandler_t (*PyOS_getsig)(int i);
+LIBPYTHON_EXTERN PyOS_sighandler_t (*PyOS_setsig)(int i, PyOS_sighandler_t h);
+
 LIBPYTHON_EXTERN void (*PySys_SetArgv)(int, char **);
 LIBPYTHON_EXTERN void (*PySys_SetArgv_v3)(int, wchar_t **);
 
 LIBPYTHON_EXTERN void (*PySys_WriteStderr)(const char *format, ...);
+LIBPYTHON_EXTERN PyObject* (*PySys_GetObject)(const char *name);
 
 LIBPYTHON_EXTERN PyObject* (*PyObject_CallMethod)(PyObject *o, const char *name, const char *format, ...);
 LIBPYTHON_EXTERN PyObject* (*PySequence_GetItem)(PyObject *o, Py_ssize_t i);
@@ -344,7 +411,6 @@ LIBPYTHON_EXTERN void* (*PyCapsule_Import)(const char *name, int no_block);
 LIBPYTHON_EXTERN PyObject* (*PyObject_Type)(PyObject* o);
 #define PyObject_TypeCheck(o, tp) ((PyTypeObject*)Py_TYPE(o) == (tp)) || PyType_IsSubtype((PyTypeObject*)Py_TYPE(o), (tp))
 
-#define PyType_Check(o) PyObject_TypeCheck(o, PyType_Type)
 
 #define PyModule_Check(op) PyObject_TypeCheck(op, PyModule_Type)
 #define PyModule_CheckExact(op) (Py_TYPE(op) == PyModule_Type)
@@ -367,12 +433,13 @@ enum NPY_TYPES {
   NPY_NOTYPE,
   NPY_CHAR,
   NPY_USERDEF=256,
-  NPY_NTYPES_ABI_COMPATIBLE=21
+  NPY_NTYPES_ABI_COMPATIBLE=21,
+  NPY_VSTRING=2056  // (added in NumPy 2.0), StringDType
 };
 
 
 // PyArray_Descr is opaque to our code so we just get the header
-
+// 1.x and 2.x compatible version (only shared fields):
 typedef struct {
   PyObject_HEAD
   PyTypeObject *typeobj;
@@ -381,10 +448,12 @@ typedef struct {
   char byteorder;
   char flags;
   int type_num;
-  int elsize;
-  int alignment;
 
   // ...more fields here we don't capture...
+  // The field above are common to NumPy 1.0 and 2.0. Subsequent fields (that we don't capture) differ.
+  // int elsize;
+  // int alignment;
+
 
 } PyArray_Descr;
 
@@ -396,10 +465,66 @@ typedef struct tagPyArrayObject {
 typedef unsigned char npy_bool;
 typedef long npy_long;
 typedef double npy_double;
+typedef unsigned char npy_ubyte;
+// with numpy 2.0, direct field access of complex numbers is no longer valid.
+// accessors like npy_creal() and npy_cimag() are the recomended way.
+// However, the memory layout is unchanged, and we define the struct here, so access is still valid.
 typedef struct { double real, imag; } npy_cdouble;
 typedef npy_cdouble npy_complex128;
 
+
+// In Numpy 2.0, npy_intp changed to Py_ssize_t. Should still be the same size on all currently supported
+// platforms (we no longer support 32-bit Windows, which was the only platform where this could be an issue)
 typedef intptr_t npy_intp;
+typedef uint64_t npy_uint64;
+typedef Py_hash_t npy_hash_t;
+
+
+/* To be able to access modified fields, define the full 2.0 struct: */
+typedef struct {
+  PyObject_HEAD
+  PyTypeObject *typeobj;
+  char kind;
+  char type;
+  char byteorder;
+  char _former_flags;
+  int type_num;
+  npy_uint64 flags;
+  npy_intp elsize;
+  // npy_intp alignment;
+  // PyObject *metadata;
+  // npy_hash_t hash;
+  // void *reserved_null[2];
+} _PyArray_DescrNumPy2;
+
+
+/*
+* Semi-private struct with additional field of legacy descriptors (must
+* check NPY_DT_is_legacy before casting/accessing).  The struct is also not
+* valid when running on 1.x (i.e. in public API use).
+*/
+
+typedef struct _PyArray_Descr {
+  PyObject_HEAD
+   PyTypeObject *typeobj;
+  char kind;
+  char type;
+  char byteorder;
+  char flags;
+  int type_num;
+  int elsize;
+  // int alignment;
+  // struct _arr_descr *subarray;
+  // PyObject *fields;
+  // PyObject *names;
+  // PyArray_ArrFuncs *f;
+  // PyObject *metadata;
+  // NpyAuxData *c_metadata;
+  // npy_hash_t hash;
+} _PyArray_DescrNumPy1;
+
+// #define NPY_DT_LEGACY 1 << 0
+// #define NPY_DT_is_legacy(dtype) (((dtype)->flags & NPY_DT_LEGACY) != 0)
 
 
 typedef struct tagPyArrayObject_fields {
@@ -445,12 +570,18 @@ typedef struct tagPyArrayObject_fields {
 
 
 LIBPYTHON_EXTERN void **PyArray_API;
+LIBPYTHON_EXTERN unsigned int PyArray_RUNTIME_VERSION;
 
 
-// has not changed in 6 years, if it changes then it implies that our PyArray_API
-// indexes may be off
-// see: https://github.com/numpy/numpy/blame/master/numpy/core/setup_common.py#L26
-#define NPY_VERSION 0x01000009
+// -- NumPy 2.0 has breaking ABI changes and a big migration guide:
+// https://github.com/numpy/numpy/blob/main/doc/source/numpy_2_0_migration_guide.rst#c-api-changes
+// Confirmed that the PyArray_API indexes we use did not change between Numpy 1.x and 2.0.
+// If NPY_VERSION changes again, confirm that PyArray_API indexes are still valid.
+// https://github.com/numpy/numpy/blob/main/numpy/_core/code_generators/numpy_api.py
+// Current indexes in use: 0, 2, 10, 45, 49, 57, 63, 93, 158, 211, 282
+// update with: $ rg 'PyArray_API\['
+#define NPY_VERSION_1 0x01000009
+#define NPY_VERSION_2 0x02000000
 
 // checks for numpy 1.6 / 1.7
 // see: https://github.com/numpy/numpy/blob/master/numpy/core/code_generators/cversions.txt
@@ -506,6 +637,9 @@ LIBPYTHON_EXTERN void **PyArray_API;
           (*(PyObject * (*)(PyTypeObject *, int, npy_intp *, int, npy_intp *, void *, int, int, PyObject *)) \
              PyArray_API[93])
 
+#define PyArray_SimpleNew(nd, dims, typenum) \
+          PyArray_New(&PyArray_Type, nd, dims, typenum, NULL, NULL, 0, 0, NULL)
+
 inline void* PyArray_DATA(PyArrayObject *arr) {
   return ((PyArrayObject_fields *)arr)->data;
 }
@@ -559,12 +693,12 @@ bool import_numpy_api(bool python3, std::string* pError);
 class SharedLibrary {
 
 public:
-  bool load(const std::string& libPath, bool python3, std::string* pError);
+  bool load(const std::string& libPath, int major_ver, int minor_ver, std::string* pError);
   bool unload(std::string* pError);
   virtual ~SharedLibrary() {}
 
 private:
-  virtual bool loadSymbols(bool python3, std::string* pError) = 0;
+  virtual bool loadSymbols(int major_ver, int minor_ver, std::string* pError) = 0;
 
 protected:
   SharedLibrary() : pLib_(NULL) {}
@@ -579,7 +713,7 @@ class LibPython : public SharedLibrary {
 private:
   LibPython() : SharedLibrary() {}
   friend SharedLibrary& libPython();
-  virtual bool loadSymbols(bool python3, std::string* pError);
+  virtual bool loadSymbols(int major_ver, int minor_ver, std::string* pError);
 };
 
 inline SharedLibrary& libPython() {
@@ -715,8 +849,12 @@ LIBPYTHON_EXTERN PyThreadState* (*PyGILState_GetThisThreadState)(void);
 LIBPYTHON_EXTERN PyGILState_STATE (*PyGILState_Ensure)(void);
 LIBPYTHON_EXTERN void (*PyGILState_Release)(PyGILState_STATE);
 LIBPYTHON_EXTERN PyThreadState* (*PyThreadState_Next)(PyThreadState*);
+LIBPYTHON_EXTERN PyThreadState* (*PyEval_SaveThread)();
+LIBPYTHON_EXTERN void (*PyEval_RestoreThread)(PyThreadState*);
 
 /* End PyFrameObject */
+
+int flush_std_buffers();
 
 } // namespace libpython
 } // namespace reticulate

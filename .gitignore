@@ -14,3 +14,8 @@ issues/
 README.html
 index.html
 inst/doc
+.vscode/
+rchk
+.cache
+compile_commands.json
+*.Dockerfile

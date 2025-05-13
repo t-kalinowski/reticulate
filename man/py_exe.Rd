@@ -7,18 +7,21 @@
 py_exe()
 }
 \value{
-The path to the associated Python executable, or \code{NULL} if Python
-has not yet been initialized.
+The path to the Python executable \code{reticulate} has been configured
+to use.
 }
 \description{
-Get the path to the Python executable associated with the instance currently
-being used by \code{reticulate}.
+Get the path to the Python executable that \code{reticulate} has been configured
+to use. If Python has already been initialized, then \code{reticulate} will
+choose the currently-active copy of Python.
 }
 \details{
 This can occasionally be useful if you'd like to interact with Python (or its
 modules) via a subprocess; for example you might choose to install a package
-with \code{pip}:\preformatted{system2(py_exe(), c("-m", "pip", "install", "numpy"))
-}
+with \code{pip}:
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{system2(py_exe(), c("-m", "pip", "install", "numpy"))
+}\if{html}{\out{</div>}}
 
 and so you can also have greater control over how these modules are invoked.
 }

@@ -9,10 +9,6 @@ vignette: >
 ---
 
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(eval = FALSE)
-```
-
 
 ## Overview
 
@@ -40,7 +36,7 @@ Here's an R Markdown document that demonstrates this:
 
 ![](images/python_chunks.png){.screenshot width="98%"}
 
-[RStudio v1.2](https://www.rstudio.com/products/rstudio/download/) or greater for reticulate IDE support.
+[RStudio v1.2](https://posit.co/download/rstudio-desktop/) or greater for reticulate IDE support.
 
 ## Calling Python from R
 
@@ -52,7 +48,7 @@ See the [Calling Python from R](calling_python.html) article for additional deta
 
 ## Calling R from Python
 
-You can analagously access R objects within Python chunks via the `r` object. For example:
+You can analogously access R objects within Python chunks via the `r` object. For example:
 
 ![](images/r_from_python.png){.screenshot width="98%"}
 

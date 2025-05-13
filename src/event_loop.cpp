@@ -38,6 +38,10 @@ namespace {
 
 // Tracks whether we've requested Python to poll on the main thread.
 volatile sig_atomic_t s_pollingRequested;
+bool s_flush_std_buffers = true;
+
+bool running = true;
+tthread::thread* t = nullptr;
 
 // Forward declarations
 int pollForEvents(void*);
@@ -47,11 +51,8 @@ int pollForEvents(void*);
 // (when it stops running it will stop calling pollForEvents and
 // the polling signal will not be set).
 void eventPollingWorker(void *) {
-  
-  while (true) {
 
-    // Throttle via sleep
-    tthread::this_thread::sleep_for(tthread::chrono::milliseconds(200));
+  while (running) {
 
     // Schedule polling on the main thread if the interpeter is still running.
     // Note that Py_AddPendingCall is documented to be callable from a background
@@ -64,8 +65,11 @@ void eventPollingWorker(void *) {
       Py_AddPendingCall(pollForEvents, NULL);
     }
 
+    // Throttle via sleep
+    tthread::this_thread::sleep_for(tthread::chrono::milliseconds(500));
+
   }
-  
+
 }
 
 void processEvents(void* data) {
@@ -81,32 +85,80 @@ void processEvents(void* data) {
 int pollForEvents(void*) {
 
   DBG("Polling for events.");
-  
+  // Some guarantees for code that runs in this function scope:
+  //
+  // 1. We are on the main thread, we have the Python GIL, no other code is
+  // concurrently accessing R. i.e., we can safely use the full Python and R
+  // APIs.
+  //
+  // 2. The Python interpreter is currently on a byte code boundary
+  // (R is waiting on Python to finish). This mean that it is *not* safe to
+  // raise an Exception, risk an R/C lngjmp, or throw a C++ exception.
+
   // Request that the background thread schedule us to be called again
   // (this is delegated to a background thread so that these requests
   // can be throttled)
   s_pollingRequested = 0;
-  
+
+  // Periodically flush stdout/stderr buffers to ensure that any output from
+  // long-running Python calls is visible in the R console.
+  if (s_flush_std_buffers) {
+    if (flush_std_buffers() != 0) {
+      Rprintf("Error flushing Python's stdout/stderr buffers. Auto-flushing is now disabled.\n");
+      s_flush_std_buffers = false;
+    }
+  }
+
   {
     // Process events. We wrap this in R_ToplevelExec just to avoid jumps.
     // Suspend interrupts here so we don't inadvertently handle them.
     reticulate::signals::InterruptsSuspendedScope scope;
     R_ToplevelExec(processEvents, NULL);
   }
-  
+
+  // Check if we need to set a python interrupt.
+  // This is a fallback in case:
+  //
+  // 1. User code overwrote the C handler reticulate registered and we received
+  // a SIGINT. This can easily happen if python code called signal.signal()
+  //
+  // 2. An R interrupt was only simulated by calling R_onintr() directly (e.g,
+  // rlang::interrupt()), and not actually received as an OS process signal.
+  //
+  // As a fail-safe for the C handler not being called, we also ensure here, in
+  // the background polling worker, that if R_interrupts_pending=1, then a Python
+  // interrupt is pending too.
+  if(reticulate::signals::getInterruptsPending()) {
+    PyErr_SetInterrupt();
+  }
+
   // Success!
   return 0;
-  
+
 }
 
 } // anonymous namespace
 
 // Initialize event loop polling background thread
 void initialize() {
-  tthread::thread t(eventPollingWorker, NULL);
-  t.detach();
+  running = true;
+  t = new tthread::thread(eventPollingWorker, NULL);
 }
+
+void deinitialize(bool wait) {
+  // signal the thread to stop
+  running = false;
+
+  // clear the ref
+  if (t) {
+    if (wait) { // default: false
+      t->join();
+      delete t;  // Clean up the thread object
+      t = nullptr;
+    }
+  }
+}
+
 
 } // namespace event_loop
 } // namespace reticulate
-

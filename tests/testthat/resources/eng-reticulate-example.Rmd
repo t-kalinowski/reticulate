@@ -8,14 +8,19 @@ library(reticulate)
 knitr::knit_engines$set(python = eng_python)
 
 # use specific environment if available
-python <- "~/.virtualenvs/python-3.7.7-venv/bin/python"
-if (file.exists(python))
-  reticulate::use_python(python, required = TRUE)
+# python <- "~/.virtualenvs/python-3.7.7-venv/bin/python"
+# if (file.exists(python))
+#   reticulate::use_python(python, required = TRUE)
 
 # use rlang error handler
 if (requireNamespace("rlang", quietly = TRUE))
   options(error = rlang::entrace)
 ```
+
+```{r}
+reticulate::py_config()
+```
+
 
 Python variables live across chunk boundaries.
 
@@ -40,6 +45,20 @@ plt.show()
 plt.plot([1, 2, 3, 4])
 plt.show()
 ```
+
+
+```{python, fig.width=8, fig.height=3, dev="svg"}
+import matplotlib.pyplot as plt
+
+plt.plot(range(10))
+```
+
+```{python, fig.width=8, fig.height=3, dev="svg"}
+import matplotlib.pyplot as plt
+
+plt.hist(range(10))
+```
+
 
 Python can access objects available in the R environment.
 
@@ -81,7 +100,7 @@ print(y)
 - #130: The `echo` chunk option is respected (for `TRUE` and `FALSE` values). Output, but not source, should show in the following output.
 
 ```{python echo=FALSE}
-print ("Chunk with echo = FALSE")
+print("Chunk with echo = FALSE")
 ```
 
 - #130: The `results` chunk option is respected for Python outputs. Source, but not output, should show in the following output.
@@ -112,6 +131,25 @@ error occurs.
 
 ```{python, error=TRUE}
 raise RuntimeError("oops!")
+print("This line is still reached.")
+```
+
+Ensure that Exceptions are formatted w/ the type and notes.
+```{python, error=TRUE}
+class CustomException(Exception):
+  pass
+
+e = CustomException("oops!")
+
+# BaseException.add_note() added in Python 3.11
+import sys
+if sys.version_info >= (3, 11):
+  e.add_note("note 1: extra oopsy oops")
+  e.add_note("note 2: in the future avoid oopsies")
+else:
+  print(sys.version_info)
+
+raise e
 print("This line is still reached.")
 ```
 
@@ -161,3 +199,39 @@ fig = px.scatter(x=[1, 2, 3], y=[5, 4, 6])
 ```{python}
 fig
 ```
+
+`_repr_html_()` methods are not called with unbound `__self__`
+(https://github.com/rstudio/reticulate/issues/1249)
+
+```{python}
+import pandas as pd
+pt = pd.DataFrame()
+type(pt)
+```
+
+`_repr_markdown_()` methods are supported 
+(https://github.com/quarto-dev/quarto-cli/issues/1501):
+
+```{python}
+from IPython.display import Markdown
+from tabulate import tabulate
+table = [["Sun",696000,1989100000],
+         ["Earth",6371,5973.6],
+         ["Moon",1737,73.5],
+         ["Mars",3390,641.85]]
+Markdown(tabulate(
+  table, 
+  headers=["Planet","R (km)", "mass (x 10^29 kg)"],
+  tablefmt="pipe"
+))
+```
+
+
+Setting option `error=TRUE` also allows parsing errors.
+
+```{python, error=TRUE}
+for i in range(3):
+  print(i)
+    print(i+10)
+```
+

@@ -36,10 +36,10 @@ register_help_topics <- function(type = c("module", "class"), topics) {
 }
 
 #' Provide help for Python objects
-#' 
+#'
 #' This is an internal method to be used by front-ends which need to provide
 #' help text / information for Python objects in different contexts.
-#' 
+#'
 #' @keywords internal
 #' @export
 py_help_handler <- function(type = c("completion", "parameter", "url"),
@@ -73,11 +73,11 @@ help_handler <- function(type = c("completion", "parameter", "url"),
 #'
 #' @param module Name of a root Python module
 #' @param handler Handler function: `function(name, subtopic = NULL)`. The name
-#'   will be the fully qualfied name of a Python object (module, function, or
+#'   will be the fully qualified name of a Python object (module, function, or
 #'   class). The `subtopic` is optional and is currently used only for methods
 #'   within classes.
 #'
-#' @details The help handler is passed a fully qualfied module, class, or
+#' @details The help handler is passed a fully qualified module, class, or
 #'   function name (and optional method for classes). It should return a URL for
 #'   a help page (or `""` if no help page is available).
 #'
@@ -292,7 +292,7 @@ help_formals_handler.python.builtin.object <- function(topic, source) {
   if (inherits(target, "python.builtin.builtin_function_or_method")) {
     output <- tryCatch({
       docs <- py_get_attr(target, "__doc__")
-      if (inherits(docs, "python.builtin.object"))
+      if (is_py_object(docs))
         docs <- py_to_r(docs)
       pieces <- strsplit(docs, "\n", fixed = TRUE)[[1]]
       first <- pieces[[1]]

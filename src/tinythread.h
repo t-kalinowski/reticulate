@@ -30,7 +30,7 @@ freely, subject to the following restrictions:
 #ifndef _TINYTHREAD_H_
 #define _TINYTHREAD_H_
 
-extern "C" void Rf_error(const char* fmt, ...);
+#include <R_ext/Error.h>  // for Rf_error()
 
 /// @file
 /// @mainpage TinyThread++ API Reference
@@ -83,6 +83,9 @@ extern "C" void Rf_error(const char* fmt, ...);
   #ifdef __UNDEF_LEAN_AND_MEAN
     #undef WIN32_LEAN_AND_MEAN
     #undef __UNDEF_LEAN_AND_MEAN
+  #endif
+  #ifdef __aarch64__
+    #include <signal.h>
   #endif
 #else
   #include <pthread.h>
@@ -1006,4 +1009,3 @@ inline thread::id this_thread::get_id()
 
 
 #endif // _TINYTHREAD_H_
-

@@ -8,36 +8,45 @@
 \alias{use_miniconda}
 \title{Use Python}
 \usage{
-use_python(python, required = FALSE)
+use_python(python, required = NULL)
 
-use_python_version(version, required = FALSE)
+use_python_version(version, required = NULL)
 
-use_virtualenv(virtualenv = NULL, required = FALSE)
+use_virtualenv(virtualenv = NULL, required = NULL)
 
-use_condaenv(condaenv = NULL, conda = "auto", required = FALSE)
+use_condaenv(condaenv = NULL, conda = "auto", required = NULL)
 
-use_miniconda(condaenv = NULL, required = FALSE)
+use_miniconda(condaenv = NULL, required = NULL)
 }
 \arguments{
 \item{python}{The path to a Python binary.}
 
 \item{required}{Is the requested copy of Python required? If \code{TRUE}, an error will be
-emitted if the requested copy of Python does not exist. Otherwise, the
+emitted if the requested copy of Python does not exist. If \code{FALSE}, the
 request is taken as a hint only, and scanning for other versions will still
-proceed.}
+proceed. A value of \code{NULL} (the default), is equivalent to \code{TRUE}.}
 
 \item{version}{The version of Python to use. \code{reticulate} will search for versions of
 Python as installed by the \code{\link[=install_python]{install_python()}} helper function.}
 
 \item{virtualenv}{Either the name of, or the path to, a Python virtual environment.}
 
-\item{condaenv}{The name of the Conda environment to use.}
+\item{condaenv}{The conda environment to use. For \code{use_condaenv()}, this can be the name,
+the absolute prefix path, or the absolute path to the python binary. If
+the name is ambiguous, the first environment is used and a warning is
+issued. For \code{use_miniconda()}, the only conda installation searched is
+the one installed by \code{install_miniconda()}.}
 
 \item{conda}{The path to a \code{conda} executable. By default, \code{reticulate} will check the
 \code{PATH}, as well as other standard locations for Anaconda installations.}
 }
 \description{
-Select the version of Python to be used by \code{reticulate}.
+Manually select the version of Python to be used by \code{reticulate}.
+
+Note that beginning with Reticulate version 1.41, manually selecting a Python
+installation is generally not necessary, as reticulate is able to
+automatically resolve an ephemeral Python environment with all necessary
+Python requirements declared via \code{py_require()}.
 }
 \details{
 The \code{reticulate} package initializes its Python bindings lazily -- that is,
@@ -66,18 +75,6 @@ Python.
 
 \section{Caveats}{
 
-
-By default, requests are \emph{advisory}, and may be ignored for a number of reasons:
-\itemize{
-\item The requested copy of Python cannot be initialized,
-\item The requested copy of Python does not have an installation of \code{numpy} available,
-\item Another call to \code{use_python()} has requested a different version of Python,
-\item The request has been overridden via \code{use_python(..., required = TRUE)}.
-}
-
-In general, if you explicitly want to use a particular version of Python, it
-is recommended to set \code{required = TRUE}, or explicitly set the
-\code{RETICULATE_PYTHON} environment variable.
 
 Note that the requests for a particular version of Python via \code{use_python()}
 and friends only persist for the active session; they must be re-run in each

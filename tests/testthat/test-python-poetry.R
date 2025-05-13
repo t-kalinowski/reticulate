@@ -5,6 +5,9 @@ test_that("reticulate uses the Poetry-configured version of Python", {
   if (!nzchar(Sys.which("poetry")))
     skip("poetry is not installed")
 
+  # unset RETICULATE_PYTHON in this scope
+  withr::local_envvar(RETICULATE_PYTHON = NULL)
+
   # move to temporary directory
   project <- tempfile("poetry-")
   dir.create(project)
@@ -30,7 +33,7 @@ test_that("reticulate uses the Poetry-configured version of Python", {
   expected <- virtualenv_python(envpath)
 
   # try running reticulate in child process
-  fmt <- "R --vanilla -s -e '%s'"
+  fmt <- "R -s -e '%s'"
   cmd <- sprintf(fmt, "writeLines(reticulate::py_config()$python)")
   actual <- system(cmd, intern = TRUE)
 

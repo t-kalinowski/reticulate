@@ -15,7 +15,10 @@ r_to_py <- function(x, convert = FALSE) {
 #' @rdname r-py-conversion
 #' @export
 py_to_r <- function(x) {
-  ensure_python_initialized()
+  if(!is_py_object(x <- py_to_r_cpp(x))) # simple obj
+    return(x)
+  # Note, the new `x` here (with convert=TRUE) won't be visible to S3 methods
+  # UseMethod() doesn't allow modifying the original call args
   UseMethod("py_to_r")
 }
 
@@ -27,55 +30,8 @@ r_to_py.default <- function(x, convert = FALSE) {
 
 #' @export
 py_to_r.default <- function(x) {
-  if (!inherits(x, "python.builtin.object"))
-    stop("Object to convert is not a Python object")
-
-  # get the default wrapper
-  x <- py_ref_to_r(x)
-
-  # allow customization of the wrapper
-  wrapper <- py_to_r_wrapper(x)
-  attributes(wrapper) <- attributes(x)
-
-  # return the wrapper
-  wrapper
+  py_to_r_cpp(x)
 }
-
-
-
-#' @export
-r_to_py.list <- function(x, convert = FALSE) {
-  converted <- lapply(x, r_to_py, convert = convert)
-  r_to_py_impl(converted, convert = convert)
-}
-
-#' @export
-py_to_r.python.builtin.list <- function(x) {
-
-  # NOTE: we don't disable conversion in this context
-  # as we want to ensure sub-objects inherit convert-ability
-  # see e.g. https://github.com/rstudio/keras/issues/732
-
-  # give internal code a chance to perform efficient
-  # conversion of e.g. numeric vectors and the like
-  converted <- py_ref_to_r(x)
-
-  # if we received an R list, assume that we may need
-  # to recursively convert elements
-  if (is.list(converted)) {
-    converted <- lapply(converted, function(object) {
-      if (inherits(object, "python.builtin.object"))
-        py_to_r(object)
-      else
-        object
-    })
-  }
-
-  converted
-}
-
-#' @export
-py_to_r.python.builtin.tuple <- py_to_r.python.builtin.list
 
 #' R wrapper for Python objects
 #'
@@ -108,60 +64,80 @@ r_to_py.factor <- function(x, convert = FALSE) {
 
 
 #' @export
-py_to_r.numpy.ndarray <- function(x) {
-  disable_conversion_scope(x)
-
-  # handle numpy datetime64 objects. fortunately, as per the
-  # numpy documentation:
-  #
-  #    Datetimes are always stored based on POSIX time
-  #
-  # although some work is required to handle the different
-  # subtypes of datetime64 (since the units since epoch can
-  # be configurable)
-  #
-  # TODO: Python (by default) displays times using UTC time;
-  # to reflect that behavior we also us 'tz = "UTC"', but we
-  # might consider just using the default (local timezone)
-  np <- import("numpy", convert = TRUE)
-  if (np$issubdtype(x$dtype, np$datetime64)) {
-    vector <- py_to_r(x$astype("datetime64[ns]")$astype("float64"))
-    return(as.POSIXct(vector / 1E9, origin = "1970-01-01", tz = "UTC"))
-  }
-
-  # no special handler found; delegate to next method
-  NextMethod()
-  
-}
-
-
-
-#' @export
 r_to_py.POSIXt <- function(x, convert = FALSE) {
 
-  # we prefer datetime64 for efficiency
-  if (py_module_available("numpy"))
-    return(np_array(as.numeric(x) * 1E9, dtype = "datetime64[ns]"))
+  tz <- attr(x, "tzone", TRUE)
 
+  ## POSIXlt tzone is a length-3 vec, where "" means local/missing tzone
+  if(length(tz))
+    tz <- tz[[1L]] %""% NULL
+
+  # we prefer numpy datetime64 for efficiency
+  # numpy doesn't support tzone
+  # (internally, always stored from UTC epoch, like POSIXct in R)
+  if (is.null(tz) && py_module_available("numpy")) {
+    np_array <- r_to_py_impl(array(as.double(x) * 1E9), convert = FALSE)
+    return(np_array$astype(dtype = "datetime64[ns]"))
+  }
+
+  if(!is.null(tz)) {
+    if(py_version() >= "3.9")
+      tz <- import("zoneinfo", convert = FALSE)$ZoneInfo(tz)
+    else
+      tz <- import("pytz")$timezone(tz)
+  }
   datetime <- import("datetime", convert = FALSE)
-  datetime$datetime$fromtimestamp(as.double(x))
+  datetime$datetime$fromtimestamp(as.double(x), tz = tz)
 }
+
 
 #' @export
 py_to_r.datetime.datetime <- function(x) {
+  if (py_version() >= "3") {
+    tz <- NULL
+    if (!is.null(x$tzinfo)) {
+
+      # in Python 3.9, there is a new zoneinfo.ZoneInfo class that
+      # accepts Olsonnames, similar to R's tz= semantics.
+      # Try to find the user supplied value in that case.
+      # Note that accessing `ZoneInfo.tzname()` is lossy. Eg.
+      # doing `ZoneInfo("America/New_York").tzname()` returns "EDT", which is
+      # not in R's OlsonNames() database, and also not stable wrt DST status.
+
+      # pytz.zone, round-trips better
+      if(is.null(tz))
+        tz <- as_r_value(py_get_attr(x$tzinfo, "zone", TRUE))
+
+      # zoneinfo.ZoneInfo(), roundtrip lossy (standardized), but in py stdlib
+      if (is.null(tz))
+        tz <- as_r_value(py_get_attr(x$tzinfo, "key", TRUE))
+
+      # common to pytz.timezone, ZoneInfo, other subclasses
+      if (is.null(tz))
+        tryCatch(tz <- as_r_value(x$tzname()), error = identity)
+    }
+
+    # TODO: if tzname() raised NotImplemented,
+    #   - restore last user facing python exception,
+    #   - have a fallback trying to construct a tz string w/ utcoffset().
+    return(.POSIXct(as_r_value(x$timestamp()), tz = tz))
+  }
+
+  # old python2 compat code.
+  # mangles tzinfo attribute: https://github.com/rstudio/reticulate/issues/1265
   disable_conversion_scope(x)
-  
+
   # convert to POSIX time
   time <- import("time", convert = TRUE)
   posix <- time$mktime(x$timetuple())
-  
+
   # include microseconds as well
   ms <- as_r_value(x$microsecond)
   posix <- posix + as.numeric(ms) * 1E-6
-  
+
   # TODO: handle non-UTC timezones?
   as.POSIXct(posix, origin = "1970-01-01", tz = "UTC")
-  
+
 }
 
 
@@ -173,19 +149,19 @@ r_to_py.Date <- function(x, convert = FALSE) {
 
 #' @export
 py_to_r.datetime.date <- function(x) {
-  disable_conversion_scope(x)
-  iso <- py_to_r(x$isoformat())
-  as.Date(iso)
+  iso <- as_r_value(x$isoformat())
+  as.Date.character(iso)
 }
 
 
 #' @export
 py_to_r.collections.OrderedDict <- function(x) {
-  disable_conversion_scope(x)
-
   keys <- py_dict_get_keys(x)
+  py_set_convert(keys, FALSE)
+
+  local_conversion_scope(x, TRUE)
   result <- lapply(seq_len(length(keys)) - 1L, function(i) {
-    py_to_r(py_dict_get_item(x, keys[i]))
+    py_dict_get_item(x, keys[i])
   })
 
   names(result) <- py_dict_get_keys_as_str(x)
@@ -195,16 +171,17 @@ py_to_r.collections.OrderedDict <- function(x) {
 
 #' @export
 py_to_r.pandas.core.series.Series <- function(x) {
-  disable_conversion_scope(x)
+  local_conversion_scope(x, FALSE)
   values <- py_to_r(x$values)
   index <- py_to_r(x$index)
-  names(values) <- index$format()
+  bt <- import("builtins")
+  names(values) <- as.character(bt$list(index$map(bt$str)))
   values
 }
 
 #' @export
 py_to_r.pandas.core.categorical.Categorical <- function(x) {
-  disable_conversion_scope(x)
+  local_conversion_scope(x, FALSE)
   values <- py_to_r(x$get_values())
   levels <- py_to_r(x$categories$values)
   ordered <- py_to_r(x$dtype$ordered)
@@ -217,13 +194,11 @@ py_to_r.pandas.core.arrays.categorical.Categorical <-
 
 #' @export
 py_to_r.pandas._libs.missing.NAType <- function(x) {
-  disable_conversion_scope(x)
   NA
 }
 
 #' @export
 py_to_r.pandas._libs.missing.C_NAType <- function(x) {
-  disable_conversion_scope(x)
   NA
 }
 
@@ -264,7 +239,7 @@ r_to_py.data.frame <- function(x, convert = FALSE) {
 
   # manually convert each column to associated Python vector type
   columns <- r_convert_dataframe(x, convert = convert)
-  
+
   # generate DataFrame from dictionary
   pdf <- pd$DataFrame$from_dict(columns)
 
@@ -285,32 +260,35 @@ r_to_py.data.frame <- function(x, convert = FALSE) {
 }
 
 #' @export
+py_to_r.datatable.Frame <- function(x) {
+  # TODO: it would be nice to avoid the extra conversion to pandas
+  py_to_r(x$to_pandas())
+}
+
+#' @export
 py_to_r.pandas.core.frame.DataFrame <- function(x) {
-  disable_conversion_scope(x)
+  local_conversion_scope(x, FALSE)
 
   np <- import("numpy", convert = TRUE)
   pandas <- import("pandas", convert = TRUE)
+  bt <- import("builtins", convert = TRUE)
 
-  # extract numpy arrays associated with each column
-  columns <- x$columns$values
-  
   # delegate to c++
   converted <- py_convert_pandas_df(x)
-  names(converted) <- py_to_r(x$columns$format())
+  converted <- lapply(converted, function(col) {
+    if (identical(length(dim(col)), 1L))
+      dim(col) <- NULL
+    col
+  })
 
-  # clean up converted objects
-  for (i in seq_along(converted)) {
-    column <- names(converted)[[i]]
-
-    # drop 1D dimensions
-    if (identical(dim(converted[[i]]), length(converted[[i]]))) {
-      dim(converted[[i]]) <- NULL
-    }
-  }
+  # assign colnamnes
+  columns <- x$columns$values
+  columns <- as.character(bt$list(x$columns$map(bt$str)))
+  names(converted) <- columns
 
   df <- converted
+  attr(df, "row.names") <- c(NA_integer_, py_to_r(-x$shape[[0L]]))
   class(df) <- "data.frame"
-  attr(df, "row.names") <- c(NA_integer_, -nrow(x))
 
   # attempt to copy over index, and set as rownames when appropriate
   #
@@ -352,7 +330,7 @@ py_to_r.pandas.core.frame.DataFrame <- function(x) {
         stop  <- py_to_r(index[["_stop"]])
         step  <- py_to_r(index[["_step"]])
       }
-      
+
       if (start != 0 || stop != nrow(df) || step != 1) {
         values <- tryCatch(py_to_r(index$values), error = identity)
         if (is.numeric(values)) {
@@ -442,7 +420,11 @@ py_to_r.scipy.sparse.base.spmatrix <- function(x) {
 #' @importFrom methods as
 #' @export
 r_to_py.sparseMatrix <- function(x, convert = FALSE) {
-  r_to_py(as(x, "dgCMatrix"), convert = convert)
+  x <- if (package_version(as.vector(getNamespaceVersion("Matrix"))) >= "1.4-2")
+    as(as(as(x, "dMatrix"), "generalMatrix"), "CsparseMatrix")
+  else
+    as(x, "dgCMatrix")
+  r_to_py(x, convert = convert)
 }
 
 # Conversion between `Matrix::dgCMatrix` and `scipy.sparse.csc.csc_matrix`.
@@ -456,10 +438,13 @@ r_to_py.dgCMatrix <- function(x, convert = FALSE) {
   sp <- import("scipy.sparse", convert = FALSE)
   csc_x <- sp$csc_matrix(
     tuple(
-      x@x, # Data array of the matrix
-      x@i, # CSC format index array
-      x@p), # CSC format index pointer array
-    shape = dim(x))
+      np_array(x@x), # Data array of the matrix
+      np_array(x@i), # CSC format index array
+      np_array(x@p), # CSC format index pointer array
+      convert = FALSE
+    ),
+    shape = dim(x)
+  )
   if (any(dim(x) != dim(csc_x)))
     stop(
       paste(
@@ -473,7 +458,8 @@ r_to_py.dgCMatrix <- function(x, convert = FALSE) {
 #' @export
 py_to_r.scipy.sparse.csc.csc_matrix <- function(x) {
   disable_conversion_scope(x)
-  
+
+  x <- x$sorted_indices()
   new(
     "dgCMatrix",
     i = as.integer(as_r_value(x$indices)),
@@ -481,7 +467,7 @@ py_to_r.scipy.sparse.csc.csc_matrix <- function(x) {
     x = as.vector(as_r_value(x$data)),
     Dim = as.integer(dim(x))
   )
-  
+
 }
 
 # Conversion between `Matrix::dgRMatrix` and `scipy.sparse.csr.csr_matrix`.
@@ -495,10 +481,13 @@ r_to_py.dgRMatrix <- function(x, convert = FALSE) {
   sp <- import("scipy.sparse", convert = FALSE)
   csr_x <- sp$csr_matrix(
     tuple(
-      x@x, # Data array of the matrix
-      x@j, # CSR format index array
-      x@p), # CSR format index pointer array
-    shape = dim(x))
+      np_array(x@x), # Data array of the matrix
+      np_array(x@j), # CSR format index array
+      np_array(x@p), # CSR format index pointer array
+      convert = FALSE
+    ),
+    shape = dim(x)
+  )
   if (any(dim(x) != dim(csr_x)))
     stop(
       paste(
@@ -511,8 +500,8 @@ r_to_py.dgRMatrix <- function(x, convert = FALSE) {
 #' @export
 py_to_r.scipy.sparse.csr.csr_matrix <- function(x) {
   disable_conversion_scope(x)
-  
-  x <- x$sorted_indices()    
+
+  x <- x$sorted_indices()
   new(
     "dgRMatrix",
     j = as.integer(as_r_value(x$indices)),
@@ -520,7 +509,7 @@ py_to_r.scipy.sparse.csr.csr_matrix <- function(x) {
     x = as.vector(as_r_value(x$data)),
     Dim = as.integer(dim(x))
   )
-  
+
 }
 
 # Conversion between `Matrix::dgTMatrix` and `scipy.sparse.coo.coo_matrix`.
@@ -534,10 +523,16 @@ r_to_py.dgTMatrix <- function(x, convert = FALSE) {
   sp <- import("scipy.sparse", convert = FALSE)
   coo_x <- sp$coo_matrix(
     tuple(
-      x@x, # Data array of the matrix
-      tuple(x@i,
-            x@j)), # COO format coordinate array
-    shape = dim(x))
+      np_array(x@x), # Data array of the matrix
+      tuple(
+        np_array(x@i),
+        np_array(x@j),
+        convert = FALSE
+      ),
+      convert = FALSE
+    ),
+    shape = dim(x)
+  )
   if (any(dim(x) != dim(coo_x)))
     stop(
       paste(
@@ -551,7 +546,7 @@ r_to_py.dgTMatrix <- function(x, convert = FALSE) {
 #' @export
 py_to_r.scipy.sparse.coo.coo_matrix <- function(x) {
   disable_conversion_scope(x)
-  
+
   new(
     "dgTMatrix",
     i = as.integer(as_r_value(x$row)),
@@ -559,16 +554,16 @@ py_to_r.scipy.sparse.coo.coo_matrix <- function(x) {
     x = as.vector(as_r_value(x$data)),
     Dim = as.integer(dim(x))
   )
-  
+
 }
 
 
 
 r_convert_dataframe_column <- function(column, convert) {
-  
+
   pd <- import("pandas", convert = FALSE)
   if (is.factor(column)) {
-    pd$Categorical(as.character(column),
+    pd$Categorical(as.list(as.character(column)),
                    categories = as.list(levels(column)),
                    ordered = inherits(column, "ordered"))
   } else if (is.numeric(column) || is.character(column)) {
@@ -578,5 +573,33 @@ r_convert_dataframe_column <- function(column, convert) {
   } else {
     r_to_py(column)
   }
-  
+
+}
+
+# workaround for deprecation of packages in scipy 1.8.0
+#' @export
+dim.scipy.sparse._base.spmatrix <- dim.scipy.sparse.base.spmatrix
+#' @export
+length.scipy.sparse._base.spmatrix <- length.scipy.sparse.base.spmatrix
+#' @export
+py_to_r.scipy.sparse._base.spmatrix <- py_to_r.scipy.sparse.base.spmatrix
+#' @export
+py_to_r.scipy.sparse._csc.csc_matrix <- py_to_r.scipy.sparse.csc.csc_matrix
+#' @export
+py_to_r.scipy.sparse._csr.csr_matrix <- py_to_r.scipy.sparse.csr.csr_matrix
+#' @export
+py_to_r.scipy.sparse._coo.coo_matrix <- py_to_r.scipy.sparse.coo.coo_matrix
+
+# updated locations for scipy 1.11.0
+#' @export
+dim.scipy.sparse._base._spbase <- dim.scipy.sparse.base.spmatrix
+#' @export
+length.scipy.sparse._base._spbase <- length.scipy.sparse.base.spmatrix
+#' @export
+py_to_r.scipy.sparse._matrix.spmatrix <- py_to_r.scipy.sparse.base.spmatrix
+
+#' @export
+as.data.frame.polars.dataframe.frame.DataFrame <-
+function(x, row.names = NULL, optional = FALSE, ...) {
+  py_set_convert(x$to_pandas, TRUE)()
 }

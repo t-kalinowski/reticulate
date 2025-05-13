@@ -1,34 +1,26 @@
 #' @export
 `$.python.builtin.dict` <- function(x, name) {
-  if (py_is_null_xptr(x) || !py_available())
-    return(NULL)
-
-  if (py_has_attr(x, name)) {
-    item <- py_get_attr(x, name)
-    return(py_maybe_convert(item, py_has_convert(x)))
-  }
-
-  `[.python.builtin.dict`(x, name)
+  attr <- py_get_attr(x, name, TRUE)
+  if(is.null(attr))
+    py_dict_get_item(x, name)
+  else
+    py_maybe_convert(attr, py_has_convert(x))
 }
 
 #' @export
 `[.python.builtin.dict` <- function(x, name) {
-  if (py_is_null_xptr(x) || !py_available())
-    return(NULL)
-
-  item <- py_dict_get_item(x, name)
-  py_maybe_convert(item, py_has_convert(x))
+  py_dict_get_item(x, name)
 }
 
 #' @export
 `[[.python.builtin.dict` <- `[.python.builtin.dict`
 
 #' @export
-`$<-.python.builtin.dict` <- function(x, name, value) {
-  if (!py_is_null_xptr(x) && py_available())
-    py_dict_set_item(x, name, value)
+`$<-.python.builtin.dict` <- function(x, key, value) {
+  if(is.null(value))
+    py_del_item(x, key)
   else
-    stop("Unable to assign value (dict reference is NULL)")
+    py_dict_set_item(x, key, value)
   x
 }
 

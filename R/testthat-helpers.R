@@ -18,9 +18,22 @@ test_that <- function(desc, code) {
 
 context <- function(label) {
 
-  # import some modules used by the tests
-  if (py_available(initialize = TRUE)) {
+  # one-time initialization
+  if (!py_available(initialize = FALSE)) {
 
+    config <- tryCatch(py_config(), error = identity)
+    if (inherits(config, "error"))
+      options(reticulate.python.disabled = TRUE)
+
+    writeLines("\n\n# Python config ----")
+    print(config)
+    writeLines("")
+
+  }
+
+  if (py_available(initialize = FALSE)) {
+
+    # import some modules used by the tests
     modules <- list(
       test     = import("rpytools.test"),
       inspect  = import("inspect"),
@@ -48,8 +61,13 @@ skip_on_cran <- function() {
 }
 
 skip_if_no_python <- function() {
+
+  if (identical(getOption("reticulate.python.disabled"), TRUE))
+    skip("Python bindings not available for testing")
+
   if (!py_available(initialize = TRUE))
     skip("Python bindings not available for testing")
+
 }
 
 skip_if_no_numpy <- function() {
@@ -104,5 +122,35 @@ skip_if_no_test_environments <- function() {
   skip <- is.na(Sys.getenv("RETICULATE_TEST_ENVIRONMENTS", unset = NA))
   if (skip)
     skip("python environments not available for testing")
+
+}
+
+skip_if_no_conda <- function() {
+
+  skip_on_cran()
+  skip_if_no_python()
+
+  if (is.null(tryCatch(reticulate::conda_binary(), error = function(e) NULL)))
+    skip("conda not available for testing")
+
+}
+
+skip_if_no_matplotlib <- function() {
+
+  skip_on_cran()
+  skip_if_no_python()
+
+  if (!py_module_available("matplotlib"))
+    skip("matplotlib not available for testing")
+
+}
+
+skip_if_module_not_available <- function(module) {
+
+  skip_on_cran()
+  skip_if_no_python()
+
+  if (!py_module_available(module))
+    skip(paste(module, "not available for testing"))
 
 }

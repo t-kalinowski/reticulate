@@ -20,16 +20,17 @@ np_array <- function(data, dtype = NULL, order = "C") {
     # check if this object has object bit set (skip dispatch
     # if we know it's unnecessary)
     isobj <- is.object(data)
-    
+
     # convert non-array to array
     if (!is.array(data))
       data <- as.array(data)
 
     # do the conversion (will result in Fortran column ordering)
-    data <- if (isobj)
+    data <- if (isobj) {
       r_to_py(data, convert = FALSE)
-    else
+    } else {
       r_to_py_impl(data, convert = FALSE)
+    }
   }
 
   # if we don't yet have a dtype then use the converted type
@@ -44,12 +45,37 @@ np_array <- function(data, dtype = NULL, order = "C") {
 
 
 #' @export
-"length.numpy.ndarray" <- function(x) {
-  if (py_is_null_xptr(x))
+length.numpy.ndarray <- function(x) {
+  if (py_is_null_xptr(x) || !py_available())
     length(NULL)
   else
     as_r_value(x$size)
 }
+
+
+#' @export
+dim.numpy.ndarray <- function(x) {
+  if (py_is_null_xptr(x) || !py_available())
+    return(NULL)
+  as.integer(py_to_r(py_get_attr(x, "shape")))
+}
+
+#' @export
+t.numpy.ndarray <- function(x) {
+  if (py_is_null_xptr(x) || !py_available())
+    return(NULL)
+  py_get_attr(x, "T")
+}
+
+#' @exportS3Method utils::str
+str.numpy.ndarray <- function(object, ..., nest.lev = 0) {
+  shape <- paste0(collapse = ",", as.integer(py_to_r(py_get_attr(object, "shape"))))
+  dtype <- as.character(py_to_r(py_get_attr(py_get_attr(object, "dtype"), "name")))
+  cat(sep = "",
+      if (nest.lev > 0) " ",
+      sprintf("<numpy.ndarray shape(%s), dtype=%s>\n", shape, dtype))
+}
+
 
 #' Reshape an Array
 #'
@@ -88,11 +114,7 @@ np_array <- function(data, dtype = NULL, order = "C") {
 #' }
 #' @export
 array_reshape <- function(x, dim, order = c("C", "F")) {
-  np <- import("numpy", convert = FALSE)
   order <- match.arg(order)
-  reshaped <- np$reshape(x, as.integer(dim), order)
-  if (!inherits(x, "python.builtin.object"))
-    reshaped <- py_to_r(reshaped)
-  reshaped
+  np <- import("numpy", convert = !is_py_object(x))
+  np$reshape(x, as.integer(dim), order = order)
 }
-
